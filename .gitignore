@@ -1,0 +1,7 @@
+data
+.session
+.wwebjs_cache
+node_modules
+.env
+.env.*
+!.env.example
