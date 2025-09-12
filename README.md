@@ -12,7 +12,7 @@ pnpm dlx puppeteer browsers install
 
 ```
 
-See browser/chrome path from the output of command above and set it to `.env` file.
+Find the browser/chrome path from the output of the command above and set it in the `.env` file.
 
 ```bash
 cp .env.example .env
@@ -31,7 +31,7 @@ BOT_CMD=!mstf
 OWNER_NUMBERS=6285300001111,6289600001111
 ```
 
-Start the bot by simply using `pnpm start` command or run it as service with `pm2`:
+Start the bot by simply using the `pnpm start` command, or run it as a service with `pm2`:
 
 ```bash
 
@@ -39,7 +39,13 @@ Start the bot by simply using `pnpm start` command or run it as service with `pm
 pnpm add -g pm2
 
 # create service
-pm2 start app.js --node-args="--env-file=.env"
+pm2 start app.js --name=wa-bot --node-args="--env-file=.env"
 ```
 
-Make sure there is `ffmpeg` cli in your system.
+On the first run, the bot will print a QR code that you can use to link your account. When using `pm2`, you can use this command to view it:
+
+```bash
+pm2 logs wa-bot --out --lines 100
+```
+
+> Make sure there is [`ffmpeg`](https://ffmpeg.org/download.html) cli in your system.
