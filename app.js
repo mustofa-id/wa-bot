@@ -89,7 +89,7 @@ async function handle_message(message) {
 	switch (feature) {
 		case "register": {
 			await setTimeout(1_000);
-			if (config.owner.includes(message.from.split("@")[0])) {
+			if (!config.owner.includes(message.from.split("@")[0])) {
 				await message.reply(`Whoa there, power trip - you're not the admin.`);
 				break;
 			}
