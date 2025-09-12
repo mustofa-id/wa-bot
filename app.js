@@ -11,7 +11,6 @@ import qrt from "qrcode-terminal";
 import wa from "whatsapp-web.js";
 
 const config = {
-	command: process.env.BOT_CMD || "!plz",
 	owner: process.env.OWNER_NUMBERS?.split(",") || [],
 	data_dir: "data",
 	chrome_path: process.env.CHROME_PATH || "",
@@ -20,6 +19,11 @@ const config = {
 mkdirSync(config.data_dir, { recursive: true });
 
 const db = new sqlite.DatabaseSync(path.join(config.data_dir, "db.sqlite"));
+const features = /** @type {const} */ (["!help", "!register", "!compress"]);
+
+/**
+ * @typedef {typeof features[number]} Feature
+ */
 
 db.exec(`
 	create table if not exists users (
@@ -74,8 +78,14 @@ function load_users() {
 
 /** @param {wa.Message} message */
 async function handle_message(message) {
-	const [command, feature, ...args] = message.body.trim().toLowerCase().split(/\s+/);
-	if (command != config.command) return;
+	const [feature, ...args] = /** @type {[Feature, ...string[]]} */ (
+		message.body.trim().toLowerCase().split(/\s+/)
+	);
+	if (!features.includes(feature)) return;
+
+	// in case server reloaded, we skip it
+	const info = await message.getInfo();
+	if (info?.read) return;
 
 	if (!users.includes(message.from.split("@")[0])) {
 		await setTimeout(1_000);
@@ -83,19 +93,28 @@ async function handle_message(message) {
 		return;
 	}
 
-	await setTimeout(1_000);
-	await message.reply("Wait..");
-
 	switch (feature) {
-		case "register": {
+		case "!help": {
+			await setTimeout(2_000);
+			const commands = features.map((f) => `- ${f} <args> \n`).join("");
+			const info = `*Personal Bot* \n\nAvailable commands: \n${commands}`;
+			await message.reply(info);
+			break;
+		}
+
+		case "!register": {
 			await setTimeout(1_000);
+			await message.reply("Please wait..");
+
 			if (!config.owner.includes(message.from.split("@")[0])) {
+				await setTimeout(1_000);
 				await message.reply(`Whoa there, power trip - you're not the admin.`);
 				break;
 			}
 
 			let [number, name] = args;
 			if (!/^\d{10,13}$/.test(number)) {
+				await setTimeout(1_000);
 				await message.reply(`No. That number gave me trust issues.`);
 				break;
 			}
@@ -111,25 +130,30 @@ async function handle_message(message) {
 			const result_message =
 				result.changes > 0 ? `Got it!` : `Register failed successfully, try again!`;
 
+			await setTimeout(1_000);
 			await message.reply(result_message);
 			break;
 		}
 
-		case "convert": {
-			await setTimeout(2_000);
+		case "!compress": {
+			await setTimeout(1_000);
+			await message.reply("Please wait..");
 
 			if (!message.hasMedia) {
+				await setTimeout(2_000);
 				await message.reply(`Was the attachment shy or just didn't vibe with the send button?`);
 				break;
 			}
 
 			if (message.type != wa.MessageTypes.DOCUMENT) {
+				await setTimeout(2_000);
 				await message.reply(`I only accept "document", not digital doodles.`);
 				break;
 			}
 
 			const media = await message.downloadMedia();
 			if (!media) {
+				await setTimeout(2_000);
 				await message.reply(`I opened it, saw nothing but disappointment. Care to try again?`);
 				break;
 			}
@@ -137,38 +161,38 @@ async function handle_message(message) {
 			const is_image = media.mimetype.startsWith("image/");
 			const is_video = media.mimetype.startsWith("video/");
 			if (!is_image && !is_video) {
+				await setTimeout(2_000);
 				await message.reply(`That file doesn't spark joy. Video or pic only, thanks.`);
 				break;
 			}
 
+			await setTimeout(2_000);
+
+			/** @type {wa.Message | undefined} */
+			let result_message;
 			if (is_video) {
 				const result = await convert_video(media.data);
 				const video = wa.MessageMedia.fromFilePath(result.output);
-				await client.sendMessage(message.from, video);
+				result_message = await client.sendMessage(message.from, video);
 				cleanup(result.dir);
 			}
 
 			if (is_image) {
 				const result = await convert_image(media.data);
 				const image = wa.MessageMedia.fromFilePath(result.output);
-				await client.sendMessage(message.from, image, { sendMediaAsHd: true });
+				result_message = await client.sendMessage(message.from, image, { sendMediaAsHd: true });
 				cleanup(result.dir);
 			}
 
-			await setTimeout(1_000);
-			await message.reply(`I did my best. Sorry if it wasn't up to your fantasy standards.`);
+			if (result_message) {
+				await setTimeout(2_000);
+				await result_message.reply(
+					`I did my best. Sorry if it wasn't up to your fantasy standards.`
+				);
+			}
 
 			break;
 		}
-
-		default:
-			await setTimeout(2_000);
-			const info =
-				`Here's available commands: \n` +
-				`- ${config.command} register <number> \n` +
-				`- ${config.command} convert <attach document> \n`;
-			await message.reply(`I think my brain lagged. Can you reboot that sentence? \n\n${info}`);
-			break;
 	}
 }
 

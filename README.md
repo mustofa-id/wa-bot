@@ -24,9 +24,6 @@ Edit `.env` file:
 # set here
 CHROME_PATH=your-browser-path
 
-# bot command default to !plz
-BOT_CMD=!mstf
-
 # bot owner numbers starts with 62 and split by comma
 OWNER_NUMBERS=6285300001111,6289600001111
 ```
