@@ -1,4 +1,8 @@
 autoincrement
+faststart
+lanczos
 libx
+maxrate
 moov
 movflags
+mstf

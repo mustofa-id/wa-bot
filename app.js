@@ -2,7 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import sqlite from "node:sqlite";
@@ -11,7 +11,7 @@ import qrt from "qrcode-terminal";
 import wa from "whatsapp-web.js";
 
 const config = {
-	command: "!plz",
+	command: process.env.BOT_CMD || "!plz",
 	owner: process.env.OWNER_NUMBERS?.split(",") || [],
 	data_dir: "data",
 	chrome_path: process.env.CHROME_PATH || "",
@@ -79,7 +79,7 @@ async function handle_message(message) {
 
 	if (!users.includes(message.from.split("@")[0])) {
 		await setTimeout(1_000);
-		await message.reply(`You're not my bro :(`);
+		await message.reply(`You're not registered. Not even a little bit.`);
 		return;
 	}
 
@@ -88,10 +88,15 @@ async function handle_message(message) {
 
 	switch (feature) {
 		case "register": {
+			await setTimeout(1_000);
+			if (config.owner.includes(message.from.split("@")[0])) {
+				await message.reply(`Whoa there, power trip - you're not the admin.`);
+				break;
+			}
+
 			let [number, name] = args;
 			if (!/^\d{10,13}$/.test(number)) {
-				await setTimeout(1_000);
-				await message.reply(`Invalid number :|`);
+				await message.reply(`No. That number gave me trust issues.`);
 				break;
 			}
 
@@ -101,10 +106,11 @@ async function handle_message(message) {
 				.prepare(`insert into users (number, name) values (?,?)`)
 				.run(number, name || null);
 
+			if (result.changes > 0) load_users();
+
 			const result_message =
 				result.changes > 0 ? `Got it!` : `Register failed successfully, try again!`;
 
-			await setTimeout(1_000);
 			await message.reply(result_message);
 			break;
 		}
@@ -136,44 +142,44 @@ async function handle_message(message) {
 			}
 
 			if (is_video) {
-				const video_path = await convert_video(media.data);
-				const video_base64 = wa.MessageMedia.fromFilePath(video_path);
-				await client.sendMessage(message.from, video_base64);
+				const result = await convert_video(media.data);
+				const video = wa.MessageMedia.fromFilePath(result.output);
+				await client.sendMessage(message.from, video);
+				cleanup(result.dir);
 			}
 
 			if (is_image) {
-				await message.reply(`Convert image will support soon`);
+				const result = await convert_image(media.data);
+				const image = wa.MessageMedia.fromFilePath(result.output);
+				await client.sendMessage(message.from, image, { sendMediaAsHd: true });
+				cleanup(result.dir);
 			}
+
+			await setTimeout(1_000);
+			await message.reply(`I did my best. Sorry if it wasn't up to your fantasy standards.`);
 
 			break;
 		}
 
 		default:
 			await setTimeout(2_000);
-			await message.reply(`I think my brain lagged. Can you reboot that sentence?`);
+			const info =
+				`Here's available commands: \n` +
+				`- ${config.command} register <number> \n` +
+				`- ${config.command} convert <attach document> \n`;
+			await message.reply(`I think my brain lagged. Can you reboot that sentence? \n\n${info}`);
 			break;
 	}
 }
 
-/**
- * @param {string} base64 video file in base64
- * @returns {Promise<string>} file output path
- */
+/** @param {string} base64 video file in base64 */
 async function convert_video(base64) {
-	const id = crypto.randomUUID();
-	const dir = await mkdtemp(path.join(tmpdir(), "vid-"));
-	const input = path.join(dir, `${id}.bin`);
-	const output = path.join(dir, `${id}.mp4`);
-
-	await writeFile(input, Buffer.from(base64, "base64"));
-
 	const args = [
 		"-y", // overwrite
 		"-hide_banner",
 		["-loglevel", "error"],
-		["-i", input],
 
-		// Ensure fast-start for web/sosmed
+		// Ensure fast-start for web/social media
 		["-movflags", "+faststart"],
 
 		// Scale to width 1080, keep AR, even dimensions; cap fps to 30
@@ -194,21 +200,72 @@ async function convert_video(base64) {
 		["-b:a", "128k"],
 		["-ar", "48000"],
 		["-ac", "2"],
-
-		output,
 	];
 
-	return new Promise((resolve, reject) => {
+	return convert_media({
+		base64,
+		ext: ".mp4",
+		cmd_args: args.flat(),
+	});
+}
+
+/** @param {string} base64 image file in base64 */
+async function convert_image(base64) {
+	const args = [
+		"-y",
+		"-hide_banner",
+		["-loglevel", "error"],
+
+		// Ensure we output exactly one frame for animated sources (GIF/A-PNG)
+		["-frames:v", "1"],
+
+		["-vf", `scale=2560:-2:flags=lanczos`],
+
+		// JPEG quality (lower is higher quality)
+		["-q:v", "2"],
+
+		// Strip metadata for smaller/cleaner output (optional)
+		["-map_metadata", "-1"],
+	];
+
+	return convert_media({ base64, ext: ".jpg", cmd_args: args.flat() });
+}
+
+/** @param {string} dir */
+async function cleanup(dir) {
+	try {
+		await rm(dir, { recursive: true, force: true });
+	} catch (error) {
+		console.warn(`cleanup ${dir} failed:`, error);
+	}
+}
+
+/**
+ *
+ * @param {{ base64: string; ext: `.${string}`; cmd_args: string[] }} params
+ */
+async function convert_media(params) {
+	const id = crypto.randomUUID();
+	const dir = await mkdtemp(path.join(tmpdir(), "media-"));
+	const input = path.join(dir, `${id}.bin`);
+	const output = path.join(dir, `${id}${params.ext}`);
+
+	await writeFile(input, Buffer.from(params.base64, "base64"));
+
+	const args = [["-i", input], ...(params.cmd_args || []), output];
+	await new Promise((resolve, reject) => {
 		const ffmpeg = spawn(`ffmpeg`, args.flat(), { windowsHide: true });
 		let error_output = "";
 		ffmpeg.stderr.on("data", (data) => (error_output += data.toString()));
 		ffmpeg.on("error", reject);
 		ffmpeg.on("close", (code) => {
 			if (code != 0) {
-				console.error("convert_video:", error_output);
-				return reject(new Error(`convert video failed: ${code}`));
+				console.error("convert_media:", error_output);
+				return reject(new Error(`convert failed: ${code}`));
 			}
-			resolve(output);
+			resolve("");
 		});
 	});
+
+	return { dir, output };
 }
