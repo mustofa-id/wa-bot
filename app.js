@@ -1,11 +1,11 @@
 // @ts-check
 
 import { spawn } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import sqlite from "node:sqlite";
+import { DatabaseSync } from "node:sqlite";
 import { setTimeout } from "node:timers/promises";
 import qrt from "qrcode-terminal";
 import wa from "whatsapp-web.js";
@@ -18,20 +18,15 @@ const config = {
 
 mkdirSync(config.data_dir, { recursive: true });
 
-const db = new sqlite.DatabaseSync(path.join(config.data_dir, "db.sqlite"));
+const db = new DatabaseSync(path.join(config.data_dir, "db.sqlite"));
 const features = /** @type {const} */ (["!help", "!register", "!compress"]);
 
 /**
  * @typedef {typeof features[number]} Feature
  */
 
-db.exec(`
-	create table if not exists users (
-		id integer primary key autoincrement,
-		number text unique not null,
-		name text
-	)
-`);
+const migrations = readFileSync("migrations.sql", { encoding: "utf8" });
+db.exec(migrations);
 
 const users = /** @type string[] */ ([]);
 
@@ -82,10 +77,6 @@ async function handle_message(message) {
 		message.body.trim().toLowerCase().split(/\s+/)
 	);
 	if (!features.includes(feature)) return;
-
-	// in case server reloaded, we skip it
-	const info = await message.getInfo();
-	if (info?.read) return;
 
 	if (!users.includes(message.from.split("@")[0])) {
 		await setTimeout(1_000);
