@@ -1,12 +1,12 @@
 // @ts-check
 
-import { spawn } from "node:child_process";
-import { mkdirSync, readFileSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import proc from "node:child_process";
+import fs from "node:fs";
+import fsp from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import { setTimeout } from "node:timers/promises";
+import sqlite from "node:sqlite";
+import timers from "node:timers/promises";
 import qrt from "qrcode-terminal";
 import wa from "whatsapp-web.js";
 
@@ -16,16 +16,16 @@ const config = {
 	chrome_path: process.env.CHROME_PATH || "",
 };
 
-mkdirSync(config.data_dir, { recursive: true });
+fs.mkdirSync(config.data_dir, { recursive: true });
 
-const db = new DatabaseSync(path.join(config.data_dir, "db.sqlite"));
+const db = new sqlite.DatabaseSync(path.join(config.data_dir, "db.sqlite"));
 const features = /** @type {const} */ (["!help", "!register", "!compress"]);
 
 /**
  * @typedef {typeof features[number]} Feature
  */
 
-const migrations = readFileSync("migrations.sql", { encoding: "utf8" });
+const migrations = fs.readFileSync("migrations.sql", { encoding: "utf8" });
 db.exec(migrations);
 
 const users = /** @type string[] */ ([]);
@@ -54,7 +54,7 @@ client.on("message", (message) => {
 	);
 	handle_message(message).catch(async (e) => {
 		console.error("handle_message error:", e);
-		await setTimeout(1_000);
+		await timers.setTimeout(1_000);
 		await message
 			.reply(`Mentally, I just blue-screened. \n\n_Error: ${e.message}_`)
 			.catch(console.error);
@@ -79,14 +79,14 @@ async function handle_message(message) {
 	if (!features.includes(feature)) return;
 
 	if (!users.includes(message.from.split("@")[0])) {
-		await setTimeout(1_000);
+		await timers.setTimeout(1_000);
 		await message.reply(`You're not registered. Not even a little bit.`);
 		return;
 	}
 
 	switch (feature) {
 		case "!help": {
-			await setTimeout(2_000);
+			await timers.setTimeout(2_000);
 			const commands = features.map((f) => `- ${f} <args> \n`).join("");
 			const info = `*Personal Bot* \n\nAvailable commands: \n${commands}`;
 			await message.reply(info);
@@ -94,18 +94,18 @@ async function handle_message(message) {
 		}
 
 		case "!register": {
-			await setTimeout(1_000);
+			await timers.setTimeout(1_000);
 			await message.reply("Please wait..");
 
 			if (!config.owner.includes(message.from.split("@")[0])) {
-				await setTimeout(1_000);
+				await timers.setTimeout(1_000);
 				await message.reply(`Whoa there, power trip - you're not the admin.`);
 				break;
 			}
 
 			let [number, name] = args;
 			if (!/^\d{10,13}$/.test(number)) {
-				await setTimeout(1_000);
+				await timers.setTimeout(1_000);
 				await message.reply(`No. That number gave me trust issues.`);
 				break;
 			}
@@ -121,30 +121,30 @@ async function handle_message(message) {
 			const result_message =
 				result.changes > 0 ? `Got it!` : `Register failed successfully, try again!`;
 
-			await setTimeout(1_000);
+			await timers.setTimeout(1_000);
 			await message.reply(result_message);
 			break;
 		}
 
 		case "!compress": {
-			await setTimeout(1_000);
+			await timers.setTimeout(1_000);
 			await message.reply("Please wait..");
 
 			if (!message.hasMedia) {
-				await setTimeout(2_000);
+				await timers.setTimeout(2_000);
 				await message.reply(`Was the attachment shy or just didn't vibe with the send button?`);
 				break;
 			}
 
 			if (message.type != wa.MessageTypes.DOCUMENT) {
-				await setTimeout(2_000);
+				await timers.setTimeout(2_000);
 				await message.reply(`I only accept "document", not digital doodles.`);
 				break;
 			}
 
 			const media = await message.downloadMedia();
 			if (!media) {
-				await setTimeout(2_000);
+				await timers.setTimeout(2_000);
 				await message.reply(`I opened it, saw nothing but disappointment. Care to try again?`);
 				break;
 			}
@@ -152,12 +152,18 @@ async function handle_message(message) {
 			const is_image = media.mimetype.startsWith("image/");
 			const is_video = media.mimetype.startsWith("video/");
 			if (!is_image && !is_video) {
-				await setTimeout(2_000);
+				await timers.setTimeout(2_000);
 				await message.reply(`That file doesn't spark joy. Video or pic only, thanks.`);
 				break;
 			}
 
-			await setTimeout(2_000);
+			let need_times_to;
+			const need_times = setInterval(() => {
+				const rand_time = Math.floor(Math.random() * 4501) + 200; // 500..5000
+				need_times_to = setTimeout(() => {
+					message.reply(`Hold up, need a sec to go through this file…`);
+				}, rand_time);
+			}, 57_000);
 
 			/** @type {wa.Message | undefined} */
 			let result_message;
@@ -175,11 +181,16 @@ async function handle_message(message) {
 				cleanup(result.dir);
 			}
 
+			clearTimeout(need_times_to);
+			clearInterval(need_times);
+
 			if (result_message) {
-				await setTimeout(2_000);
+				await timers.setTimeout(2_000);
 				await result_message.reply(
 					`I did my best. Sorry if it wasn't up to your fantasy standards.`
 				);
+			} else {
+				await message.reply(`Nothing I can do.`);
 			}
 
 			break;
@@ -249,7 +260,7 @@ async function convert_image(base64) {
 /** @param {string} dir */
 async function cleanup(dir) {
 	try {
-		await rm(dir, { recursive: true, force: true });
+		await fsp.rm(dir, { recursive: true, force: true });
 	} catch (error) {
 		console.warn(`cleanup ${dir} failed:`, error);
 	}
@@ -261,15 +272,15 @@ async function cleanup(dir) {
  */
 async function convert_media(params) {
 	const id = crypto.randomUUID();
-	const dir = await mkdtemp(path.join(tmpdir(), "media-"));
+	const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "media-"));
 	const input = path.join(dir, `${id}.bin`);
 	const output = path.join(dir, `${id}${params.ext}`);
 
-	await writeFile(input, Buffer.from(params.base64, "base64"));
+	await fsp.writeFile(input, Buffer.from(params.base64, "base64"));
 
 	const args = [["-i", input], ...(params.cmd_args || []), output];
 	await new Promise((resolve, reject) => {
-		const ffmpeg = spawn(`ffmpeg`, args.flat(), { windowsHide: true });
+		const ffmpeg = proc.spawn(`ffmpeg`, args.flat(), { windowsHide: true });
 		let error_output = "";
 		ffmpeg.stderr.on("data", (data) => (error_output += data.toString()));
 		ffmpeg.on("error", reject);
@@ -278,7 +289,7 @@ async function convert_media(params) {
 				console.error("convert_media:", error_output);
 				return reject(new Error(`convert failed: ${code}`));
 			}
-			resolve("");
+			resolve(void 0);
 		});
 	});
 
