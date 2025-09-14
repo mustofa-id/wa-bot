@@ -45,6 +45,11 @@ const features = options.map((o) => o[0]);
  * @typedef {typeof features[number]} Feature
  */
 
+/**
+ * @template T
+ * @typedef {T | Promise<T>} MaybePromise
+ */
+
 const migrations = fs.readFileSync("migrations.sql", { encoding: "utf8" });
 db.exec(migrations);
 
@@ -104,6 +109,11 @@ async function handle_message(message) {
 		return;
 	}
 
+	if (feature != "!help") {
+		await timers.setTimeout(1_000);
+		await message.reply("Please wait…");
+	}
+
 	switch (feature) {
 		case "!help": {
 			await timers.setTimeout(2_000);
@@ -114,9 +124,6 @@ async function handle_message(message) {
 		}
 
 		case "!register": {
-			await timers.setTimeout(1_000);
-			await message.reply("Please wait..");
-
 			if (!config.owner.includes(message.from.split("@")[0])) {
 				await timers.setTimeout(1_000);
 				await message.reply(`Whoa there, power trip - you're not the admin.`);
@@ -147,19 +154,14 @@ async function handle_message(message) {
 		}
 
 		case "!compress": {
-			await timers.setTimeout(1_000);
-			await message.reply("Please wait..");
-
 			const media = await get_attached_doc(message, ["video", "image"]);
 			if (!media) break;
 
-			let need_times_to;
-			const need_times = setInterval(() => {
-				const rand_time = Math.floor(Math.random() * 4501) + 200; // 500..5000
-				need_times_to = setTimeout(() => {
-					message.reply(`Hold up, need a sec to go through this file…`);
-				}, rand_time);
-			}, 57_000);
+			const clear_long_notifier = set_random_interval(
+				async () => await message.reply(`Hold up, need a sec to go through this file…`),
+				57_000,
+				67_000
+			);
 
 			/** @type {wa.Message | undefined} */
 			let result_message;
@@ -167,18 +169,17 @@ async function handle_message(message) {
 				const result = await convert_video(media.data);
 				const video = wa.MessageMedia.fromFilePath(result.output);
 				result_message = await client.sendMessage(message.from, video);
-				cleanup(result.dir);
+				cleanup_dir(result.dir);
 			}
 
 			if (media.type == "image") {
 				const result = await convert_image(media.data);
 				const image = wa.MessageMedia.fromFilePath(result.output);
 				result_message = await client.sendMessage(message.from, image, { sendMediaAsHd: true });
-				cleanup(result.dir);
+				cleanup_dir(result.dir);
 			}
 
-			clearTimeout(need_times_to);
-			clearInterval(need_times);
+			clear_long_notifier();
 
 			if (result_message) {
 				await timers.setTimeout(2_000);
@@ -193,13 +194,22 @@ async function handle_message(message) {
 		}
 
 		case "!ffmpeg": {
-			await timers.setTimeout(1_000);
-			await message.reply("Please wait..");
-
 			const media = await get_attached_doc(message);
 			if (!media) break;
 
 			const [ext, ...cmd_args] = args;
+			if (!ext) {
+				await timers.setTimeout(2_000);
+				await message.reply(`What's the output file extension again? My memory's on vacation.`);
+				break;
+			}
+
+			const clear_long_notifier = set_random_interval(
+				async () => await message.reply(`Hold up, need a sec to go through this file…`),
+				57_000,
+				67_000
+			);
+
 			const result = await ffmpeg({ base64: media.data, ext: `.${ext}`, cmd_args });
 			const content = wa.MessageMedia.fromFilePath(result.output);
 			await message.reply(content, undefined, {
@@ -207,6 +217,8 @@ async function handle_message(message) {
 				caption: "Here you go!",
 			});
 
+			cleanup_dir(result.dir);
+			clear_long_notifier();
 			break;
 		}
 
@@ -306,13 +318,40 @@ async function convert_image(base64) {
 	return ffmpeg({ base64, ext: ".jpg", cmd_args: args.flat() });
 }
 
-/** @param {string} dir */
-async function cleanup(dir) {
+/** @param {string} path */
+async function cleanup_dir(path) {
 	try {
-		await fsp.rm(dir, { recursive: true, force: true });
+		await fsp.rm(path, { recursive: true, force: true });
 	} catch (error) {
-		console.warn(`cleanup ${dir} failed:`, error);
+		console.warn(`cleanup ${path} failed:`, error);
 	}
+}
+
+/**
+ *
+ * @param {() => MaybePromise<unknown>} callback
+ * @param {number =} min
+ * @param {number =} max
+ */
+function set_random_interval(callback, min = 1, max = 1) {
+	let timer_id;
+	let running = true;
+
+	async function run() {
+		if (!running) return;
+
+		await callback?.();
+
+		const delay = Math.floor(Math.random() * (max - min + 1) + min);
+		timer_id = setTimeout(run, delay);
+	}
+
+	run();
+	return () => {
+		running = false;
+		clearTimeout(timer_id);
+		timer_id = undefined;
+	};
 }
 
 /**
