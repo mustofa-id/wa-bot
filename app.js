@@ -22,10 +22,10 @@ const db = new sqlite.DatabaseSync(path.join(config.data_dir, "db.sqlite"));
 const options = /** @type {const} */ ([
 	["!help", "Show help"],
 	["!register", "Register new user"],
-	["!compress", "Compress a attached document (video or image) for Status"],
+	["!compress", "Compress an attached (or reply sent) document (video or image) for Status."],
 	[
 		"!ffmpeg",
-		"Run the *ffmpeg* command with the attached file. " +
+		"Run the *ffmpeg* command with the attached (or reply sent) document. " +
 			"The first argument is the output file extension and " +
 			"the remaining arguments are *ffmpeg* parameters. For " +
 			"example: *!ffmpeg mp4 -r 30 -preset medium*.",
@@ -165,21 +165,24 @@ async function handle_message(message) {
 
 			/** @type {wa.Message | undefined} */
 			let result_message;
-			if (media.type == "video") {
-				const result = await convert_video(media.data);
-				const video = wa.MessageMedia.fromFilePath(result.output);
-				result_message = await client.sendMessage(message.from, video);
-				cleanup_dir(result.dir);
-			}
 
-			if (media.type == "image") {
-				const result = await convert_image(media.data);
-				const image = wa.MessageMedia.fromFilePath(result.output);
-				result_message = await client.sendMessage(message.from, image, { sendMediaAsHd: true });
-				cleanup_dir(result.dir);
-			}
+			try {
+				if (media.type == "video") {
+					const result = await convert_video(media.data);
+					const video = wa.MessageMedia.fromFilePath(result.output);
+					result_message = await client.sendMessage(message.from, video);
+					cleanup_dir(result.dir);
+				}
 
-			clear_long_notifier();
+				if (media.type == "image") {
+					const result = await convert_image(media.data);
+					const image = wa.MessageMedia.fromFilePath(result.output);
+					result_message = await client.sendMessage(message.from, image, { sendMediaAsHd: true });
+					cleanup_dir(result.dir);
+				}
+			} finally {
+				clear_long_notifier();
+			}
 
 			if (result_message) {
 				await timers.setTimeout(2_000);
@@ -210,15 +213,19 @@ async function handle_message(message) {
 				67_000
 			);
 
-			const result = await ffmpeg({ base64: media.data, ext: `.${ext}`, cmd_args });
-			const content = wa.MessageMedia.fromFilePath(result.output);
-			await message.reply(content, undefined, {
-				sendMediaAsDocument: true,
-				caption: "Here you go!",
-			});
+			try {
+				const result = await ffmpeg({ base64: media.data, ext: `.${ext}`, cmd_args });
+				const content = wa.MessageMedia.fromFilePath(result.output);
+				await message.reply(content, undefined, {
+					sendMediaAsDocument: true,
+					caption: "Here you go!",
+				});
 
-			cleanup_dir(result.dir);
-			clear_long_notifier();
+				cleanup_dir(result.dir);
+			} finally {
+				clear_long_notifier();
+			}
+
 			break;
 		}
 
@@ -247,7 +254,13 @@ async function get_attached_doc(message, filters = []) {
 		return;
 	}
 
-	const media = await message.downloadMedia();
+	let media = await message.downloadMedia();
+
+	if (!media && message.hasQuotedMsg) {
+		const quote = await message.getQuotedMessage();
+		if (quote.hasMedia) media = await quote.downloadMedia();
+	}
+
 	if (!media) {
 		await message.reply(`I opened it, saw nothing but disappointment. Care to try again?`);
 		return;
