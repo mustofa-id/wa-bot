@@ -241,10 +241,17 @@ async function handle_message(message) {
 /**
  * @param {wa.Message} message
  * @param {('video' | 'image' | 'audio' | 'unknown')[]} filters
+ * @param {number} delay
  */
-async function get_attached_doc(message, filters = []) {
-	await timers.setTimeout(2_000);
+async function get_attached_doc(message, filters = [], delay = 2_000) {
+	if (delay > 0) await timers.setTimeout(2_000);
+
 	if (!message.hasMedia) {
+		if (message.hasQuotedMsg) {
+			const quote = await message.getQuotedMessage();
+			return get_attached_doc(quote, filters, 0);
+		}
+
 		await message.reply(`Was the attachment shy or just didn't vibe with the send button?`);
 		return;
 	}
@@ -254,13 +261,7 @@ async function get_attached_doc(message, filters = []) {
 		return;
 	}
 
-	let media = await message.downloadMedia();
-
-	if (!media && message.hasQuotedMsg) {
-		const quote = await message.getQuotedMessage();
-		if (quote.hasMedia) media = await quote.downloadMedia();
-	}
-
+	const media = await message.downloadMedia();
 	if (!media) {
 		await message.reply(`I opened it, saw nothing but disappointment. Care to try again?`);
 		return;
