@@ -118,8 +118,8 @@ client.on("message", (message) => {
 	handle_message(message).catch(async (e) => {
 		console.error("handle_message error:", e);
 		await timers.setTimeout(1_000);
-		await message
-			.reply(`Mentally, I just blue-screened. \n\n_Error: ${e.message}_`)
+		await message //
+			.reply(str.MSG_HANDLE_ERR + ` \n\n_Error: ${e.message}`)
 			.catch(console.error);
 	});
 });
@@ -159,8 +159,7 @@ function notify_money_tracker() {
 	`;
 
 	for (const user of db.prepare(query).all()) {
-		const message = `👀 We didn't see any \`!money\` trackers from you today. Wanna add one before the day ends?`;
-		client.sendMessage(user["number"] + "@c.us", message);
+		client.sendMessage(user["number"] + "@c.us", str.MSG_NO_MONEY_TODAY);
 	}
 }
 
@@ -177,13 +176,13 @@ async function handle_message(message) {
 
 	if (!user) {
 		await timers.setTimeout(1_000);
-		await message.reply(`You're not registered. Not even a little bit.`);
+		await message.reply(str.MSG_UNREGISTERED);
 		return;
 	}
 
 	if (user.is_active != 1) {
 		await timers.setTimeout(1_000);
-		await message.reply(`Account is not active, sorry.`);
+		await message.reply(str.MSG_INACTIVATED_ACCOUNT);
 		return;
 	}
 
@@ -191,7 +190,7 @@ async function handle_message(message) {
 		case "!help": {
 			await timers.setTimeout(2_000);
 			const commands = options.map((f) => `- \`${f[0]}\` ${f[1]} \n`).join("");
-			const info = `🧰 *Multipurpose Tools*: \n\nAvailable commands: \n${commands}`;
+			const info = `🧰 ${str.APP_DESC} \n${commands}`;
 			await client.sendMessage(message.from, info);
 			break;
 		}
@@ -199,7 +198,7 @@ async function handle_message(message) {
 		case "!users": {
 			await timers.setTimeout(5_000);
 			if (user.is_owner != 1) {
-				await message.reply(`Whoa there, power trip - you're not the admin.`);
+				await message.reply(str.MSG_ADMIN_ONLY);
 				break;
 			}
 
@@ -228,7 +227,7 @@ async function handle_message(message) {
 									.join(" \n")
 						)
 						.join("\n\n")
-				: "_Poof! Nothing appeared. Try a different spell?_";
+				: str.MSG_NO_RESULT;
 			await message.reply(info);
 			break;
 		}
@@ -236,14 +235,14 @@ async function handle_message(message) {
 		case "!register": {
 			if (user.is_owner != 1) {
 				await timers.setTimeout(1_000);
-				await message.reply(`Whoa there, power trip - you're not the admin.`);
+				await message.reply(str.MSG_ADMIN_ONLY);
 				break;
 			}
 
 			const [first, ...rest] = args;
 			if (!/^\d{10,13}$/.test(first)) {
 				await timers.setTimeout(1_000);
-				await message.reply(`No. That number gave me trust issues.`);
+				await message.reply(str.MSG_INVALID_NUMBER);
 				break;
 			}
 
@@ -254,8 +253,7 @@ async function handle_message(message) {
 				const result = db
 					.prepare(`update users set is_active = not is_active where number = ?`)
 					.run(number);
-				const result_message =
-					result.changes > 0 ? "Got it!" : "❌ Failed to change user active status";
+				const result_message = result.changes > 0 ? str.MSG_SUCCESS : str.MSG_TOGGLE_ACTIVE_FAILED;
 				await timers.setTimeout(3_000);
 				await message.reply(result_message);
 				break;
@@ -269,8 +267,7 @@ async function handle_message(message) {
 			const result = db
 				.prepare(`insert into users (number, name) values (?,?)`)
 				.run(number, name || null);
-			const result_message =
-				result.changes > 0 ? `Got it!` : `❌ Register failed successfully, try again!`;
+			const result_message = result.changes > 0 ? str.MSG_SUCCESS : str.MSG_REGISTER_FAILED;
 			await timers.setTimeout(3_000);
 			await message.reply(result_message);
 			break;
@@ -281,7 +278,7 @@ async function handle_message(message) {
 			if (!media) break;
 
 			const clear_long_notifier = set_random_interval(
-				async () => await message.reply(`Hold up, need a sec to go through this file…`),
+				async () => await message.reply(str.MSG_NEED_MORE_TIME),
 				57_000,
 				67_000
 			);
@@ -290,7 +287,7 @@ async function handle_message(message) {
 			let result_message;
 
 			await timers.setTimeout(2_000);
-			await message.reply("Please wait…");
+			await message.reply(str.MSG_WAIT);
 			try {
 				if (media.type == "video") {
 					const result = await convert_video(media.data);
@@ -311,11 +308,9 @@ async function handle_message(message) {
 
 			if (result_message) {
 				await timers.setTimeout(2_000);
-				await result_message.reply(
-					`I did my best. Sorry if it wasn't up to your fantasy standards.`
-				);
+				await result_message.reply(str.MSG_COMPRESS_OK);
 			} else {
-				await message.reply(`Nothing I can do.`);
+				await message.reply(str.MSG_COMPRESS_INVALID_ARGS);
 			}
 
 			break;
@@ -328,24 +323,24 @@ async function handle_message(message) {
 			const [ext, ...cmd_args] = args;
 			if (!ext) {
 				await timers.setTimeout(2_000);
-				await message.reply(`What's the output file extension again? My memory's on vacation.`);
+				await message.reply(str.MSG_FFMPEG_INVALID_EXT);
 				break;
 			}
 
 			const clear_long_notifier = set_random_interval(
-				async () => await message.reply(`Hold up, need a sec to go through this file…`),
+				async () => await message.reply(str.MSG_NEED_MORE_TIME),
 				57_000,
 				67_000
 			);
 
 			await timers.setTimeout(2_000);
-			await message.reply("Please wait…");
+			await message.reply(str.MSG_WAIT);
 			try {
 				const result = await ffmpeg({ base64: media.data, ext: `.${ext}`, cmd_args });
 				const content = wa.MessageMedia.fromFilePath(result.output);
 				await message.reply(content, undefined, {
 					sendMediaAsDocument: true,
-					caption: "Here you go!",
+					caption: str.MSG_FFMPEG_OK,
 				});
 
 				cleanup_dir(result.dir);
@@ -362,7 +357,7 @@ async function handle_message(message) {
 
 			if (/^-?\d+$/.test(first)) {
 				if (!rest[0]) {
-					await message.reply(`No description? That's wild 😭`);
+					await message.reply(str.MSG_MONEY_INVALID_DESC);
 					break;
 				}
 
@@ -376,7 +371,7 @@ async function handle_message(message) {
 
 				const query = `insert into bookkeeping (user_id, amount, date, description) values (?,?,?,?)`;
 				const result = db.prepare(query).run(user.id, +first, date, description);
-				const info = result.changes > 0 ? `Got it!` : `❌ Uh oh, failed to save the record.`;
+				const info = result.changes > 0 ? str.MSG_SUCCESS : str.MSG_MONEY_SAVE_FAILED;
 				await message.reply(info);
 				break;
 			}
@@ -386,7 +381,7 @@ async function handle_message(message) {
 				let with_user_id = undefined;
 				if (rest[0] == "with" && /\d+/.test(rest[1])) {
 					if (user.is_owner != 1) {
-						await message.reply(`Only admins can snoop on everyone's tracker, sorry.`);
+						await message.reply(str.MSG_ADMIN_ONLY);
 						break;
 					}
 
@@ -441,7 +436,7 @@ async function handle_message(message) {
 						const params = with_user_id ? [user.id, with_user_id] : [user.id];
 						const summary = db.prepare(query).get(...params);
 						const detail = !summary
-							? "_No record yet_"
+							? str.MSG_MONEY_RECAP_EMPTY
 							: Object.entries(summary)
 									.map(([k, v]) => `${k}: *${typeof v == "number" ? rupiah(v) : v}*`)
 									.join(" \n");
@@ -452,13 +447,13 @@ async function handle_message(message) {
 				break;
 			}
 
-			await message.reply(`Nah, that argument's sus.`);
+			await message.reply(str.MSG_MONEY_INVALID_ARGS);
 			break;
 		}
 
 		default:
 			await timers.setTimeout(3_000);
-			await message.reply(`Hang tight, this command's not working just yet.`);
+			await message.reply(str.MSG_UNKNOWN_CMD);
 			break;
 	}
 }
@@ -477,18 +472,18 @@ async function get_attached_doc(message, filters = [], delay = 2_000) {
 			return get_attached_doc(quote, filters, 0);
 		}
 
-		await message.reply(`Was the attachment shy or just didn't vibe with the send button?`);
+		await message.reply(str.MSG_DOC_NOT_ATTACHED);
 		return;
 	}
 
 	if (message.type != wa.MessageTypes.DOCUMENT) {
-		await message.reply(`I only accept "document", not digital doodles.`);
+		await message.reply(str.MSG_DOC_INVALID_ATTACHMENT);
 		return;
 	}
 
 	const media = await message.downloadMedia();
 	if (!media) {
-		await message.reply(`I opened it, saw nothing but disappointment. Care to try again?`);
+		await message.reply(str.MSG_MEDIA_DOWNLOAD_FAILED);
 		return;
 	}
 
@@ -499,7 +494,7 @@ async function get_attached_doc(message, filters = [], delay = 2_000) {
 
 	if (filters?.length && !filters.includes(type)) {
 		const allowed = filters.map((t) => `'${t}'`).join(" or ");
-		await message.reply(`That file doesn't spark joy. Only ${allowed}, Thanks.`);
+		await message.reply(`${str.MSG_MEDIA_INVALID_TYPE} ${allowed}`);
 		return;
 	}
 
