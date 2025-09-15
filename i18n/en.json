@@ -30,5 +30,8 @@
 	"MSG_DOC_NOT_ATTACHED": "Was the attachment shy or just didn't vibe with the send button?",
 	"MSG_DOC_INVALID_ATTACHMENT": "I only accept \"document\", not digital doodles.",
 	"MSG_MEDIA_DOWNLOAD_FAILED": "I opened it, saw nothing but disappointment. Care to try again?",
-	"MSG_MEDIA_INVALID_TYPE": "That file doesn't spark joy. Only:"
+	"MSG_MEDIA_INVALID_TYPE": "That file doesn't spark joy. Only:",
+	"L_TODAY": "Today",
+	"L_THIS_MONTH": "This Month",
+	"L_LAST_MONTH": "Last Month"
 }

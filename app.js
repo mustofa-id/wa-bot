@@ -391,7 +391,7 @@ async function handle_message(message) {
 				const user_filter = ` user_id in (?${with_user_id ? ",?" : ""})`;
 				const result = [
 					[
-						`This Day`,
+						str.L_TODAY,
 						`select 
 							date(date) as day,
 							sum(case when amount > 0 then amount else 0 end) as income,
@@ -405,7 +405,7 @@ async function handle_message(message) {
 					],
 
 					[
-						`This Month`,
+						str.L_THIS_MONTH,
 						`select 
 							strftime('%Y-%m', date) as month,
 							sum(case when amount > 0 then amount else 0 end) as income,
@@ -419,7 +419,7 @@ async function handle_message(message) {
 					],
 
 					[
-						`Last Month`,
+						str.L_LAST_MONTH,
 						`select 
 							strftime('%Y-%m', date) as month,
 							sum(case when amount > 0 then amount else 0 end) as income,

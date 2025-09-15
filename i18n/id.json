@@ -30,5 +30,8 @@
 	"MSG_DOC_NOT_ATTACHED": "Lampirannya nggak kebaca atau gagal terkirim?",
 	"MSG_DOC_INVALID_ATTACHMENT": "Saya hanya menerima \"dokumen\", bukan coretan digital.",
 	"MSG_MEDIA_DOWNLOAD_FAILED": "Saya buka, tapi isinya zonk. Coba lagi ya?",
-	"MSG_MEDIA_INVALID_TYPE": "File ini tidak cocok. Hanya mendukung:"
+	"MSG_MEDIA_INVALID_TYPE": "File ini tidak cocok. Hanya mendukung:",
+	"L_TODAY": "Hari ini",
+	"L_THIS_MONTH": "Bulan ini",
+	"L_LAST_MONTH": "Bulan lalu"
 }
