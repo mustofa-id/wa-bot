@@ -256,14 +256,15 @@ async function handle_message(message) {
 				break;
 			}
 
-			let [number, name] = args;
-			if (!/^\d{10,13}$/.test(number)) {
+			const [first, ...rest] = args;
+			if (!/^\d{10,13}$/.test(first)) {
 				await timers.setTimeout(1_000);
 				await message.reply(`No. That number gave me trust issues.`);
 				break;
 			}
 
-			number = number.startsWith("62") ? number : "62" + number.slice(1);
+			const number = first.startsWith("62") ? first : "62" + first.slice(1);
+			let name = rest.join(" ");
 
 			if (name == "--toggle-active") {
 				const result = db
