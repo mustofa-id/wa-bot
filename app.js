@@ -9,6 +9,7 @@ import sqlite from "node:sqlite";
 import timers from "node:timers/promises";
 import qrt from "qrcode-terminal";
 import wa from "whatsapp-web.js";
+import * as i18n from "./i18n";
 
 // TODO: support more country calling code other than 62. Use libphonenumber-js.
 
@@ -17,39 +18,22 @@ const config = {
 	data_dir: new URL("data/", import.meta.url),
 	migrations_dir: new URL("migrations/", import.meta.url),
 	chrome_path: process.env.CHROME_PATH,
+	lang: /** @type {keyof typeof i18n} */ (process.env.APP_LANG || "en"),
 };
 
 fs.mkdirSync(config.data_dir, { recursive: true });
 
+const str = i18n[config.lang];
+if (!str) throw new Error(`Invalid "env.APP_LANG" config: "${config.lang}"`);
+
 const db = new sqlite.DatabaseSync(new URL("db.sqlite", config.data_dir));
 const options = /** @type {const} */ ([
-	["!help", "Show help"],
-	[
-		"!users",
-		"List all users. First argument is rows limit (default to 10) or _name_ search query.",
-	],
-	[
-		"!register",
-		"Register new user. First argument is WA number that starts with 62. Second arguments " +
-			"is optional user name. The second argument can be *--toggle-active* to toggle user " +
-			"active status by its number.",
-	],
-	["!compress", "Compress an attached (or reply sent) document (video or image) for Status."],
-	[
-		"!ffmpeg",
-		"Run the *ffmpeg* command with the attached (or reply sent) document. " +
-			"The first argument is the output file extension and " +
-			"the remaining arguments are *ffmpeg* parameters. For " +
-			"example: *!ffmpeg mp4 -r 30 -preset medium*.",
-	],
-	[
-		"!money",
-		"Track your income and expenses. " +
-			"Syntax: *!money <amount> <yyyy-mm-dd date?> <description>*. " +
-			"Example: *!money -17000 Buy milk* or  *!money 150000 2025-09-24 Got donation*. " +
-			"Note: Date is optional that default to current date. Use a minus sign (-) for " +
-			"expenses. To get recaps, *!money recap* or *!money recap with <user id>*.",
-	],
+	["!help", str.CMD_HELP],
+	["!users", str.CMD_USERS],
+	["!register", str.CMD_REGISTER],
+	["!compress", str.CMD_COMPRESS],
+	["!ffmpeg", str.CMD_FFMPEG],
+	["!money", str.CMD_MONEY],
 ]);
 
 const features = options.map((o) => o[0]);
@@ -166,7 +150,7 @@ function notify_money_tracker() {
 	const query = `
 		select u.id, u.number
 		from users u
-		where not exists (
+		where u.is_active = 1 and not exists (
 			select 1
 			from bookkeeping b
 			where b.user_id = u.id
