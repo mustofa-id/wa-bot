@@ -14,7 +14,7 @@ const config = {
 	owner: process.env.OWNER_NUMBERS?.split(",") || [],
 	data_dir: new URL("data/", import.meta.url),
 	migrations_dir: new URL("migrations/", import.meta.url),
-	chrome_path: process.env.CHROME_PATH || "",
+	chrome_path: process.env.CHROME_PATH,
 };
 
 fs.mkdirSync(config.data_dir, { recursive: true });
@@ -90,7 +90,7 @@ const users = /** @type {{ id: number, number: string, name?: string, is_owner: 
 const client = new wa.Client({
 	puppeteer: {
 		args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-		executablePath: config.chrome_path,
+		executablePath: config.chrome_path || undefined,
 		headless: true,
 	},
 	authStrategy: new wa.LocalAuth({ dataPath: ".session" }),

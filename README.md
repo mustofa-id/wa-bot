@@ -1,13 +1,11 @@
 # Personal WhatsApp Bot
 
-## Development
-
 ```bash
 
 # install dependencies
 pnpm i
 
-# install puppeteer browser/chrome
+# install puppeteer browser/chrome (optional default to chromium)
 pnpm dlx puppeteer browsers install
 
 ```
@@ -21,7 +19,7 @@ cp .env.example .env
 Edit `.env` file:
 
 ```conf
-# set here
+# set here (optional default to chromium)
 CHROME_PATH=your-browser-path
 
 # bot owner numbers starts with 62 and split by comma
