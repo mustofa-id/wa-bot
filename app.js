@@ -12,13 +12,14 @@ import wa from "whatsapp-web.js";
 
 const config = {
 	owner: process.env.OWNER_NUMBERS?.split(",") || [],
-	data_dir: "data",
+	data_dir: new URL("data/", import.meta.url),
+	migrations_dir: new URL("migrations/", import.meta.url),
 	chrome_path: process.env.CHROME_PATH || "",
 };
 
 fs.mkdirSync(config.data_dir, { recursive: true });
 
-const db = new sqlite.DatabaseSync(path.join(config.data_dir, "db.sqlite"));
+const db = new sqlite.DatabaseSync(new URL("db.sqlite", config.data_dir));
 const options = /** @type {const} */ ([
 	["!help", "Show help"],
 	["!register", "Register new user"],
@@ -33,9 +34,10 @@ const options = /** @type {const} */ ([
 	[
 		"!money",
 		"Track your income and expenses. " +
-			"Syntax: *!money <amount> <description>* " +
-			"Example: *!money -17000 Buy milk* or  *!money 150000 Got donation*. " +
-			"Note: Use a minus sign (-) for expenses. ",
+			"Syntax: *!money <amount> <yyyy-mm-dd date?> <description>*. " +
+			"Example: *!money -17000 Buy milk* or  *!money 150000 2025-09-24 Got donation*. " +
+			"Note: Date is optional that default to current date. Use a minus sign (-) for " +
+			"expenses. To get recaps, type: *!money recap*.",
 	],
 ]);
 
@@ -50,10 +52,40 @@ const features = options.map((o) => o[0]);
  * @typedef {T | Promise<T>} MaybePromise
  */
 
-const migrations = fs.readFileSync("migrations.sql", { encoding: "utf8" });
-db.exec(migrations);
+// BEGIN MIGRATIONS
+try {
+	db.exec(`
+		create table if not exists _migrations (
+			id text not null primary key, 
+			occurred_at text not null default (current_timestamp)
+		)
+	`);
 
-const users = /** @type string[] */ ([]);
+	const migrations = db
+		.prepare(`select id from _migrations`)
+		.all()
+		.map((m) => /** @type {string} */ (m.id));
+
+	db.exec("begin");
+
+	for (const file_name of fs.readdirSync(config.migrations_dir).sort()) {
+		if (!file_name.endsWith(".sql")) continue;
+		if (migrations.includes(file_name)) continue;
+
+		const file_path = new URL(file_name, config.migrations_dir);
+		const sql_content = fs.readFileSync(file_path, "utf8");
+		db.exec(sql_content);
+		db.prepare(`insert into _migrations (id) values (?)`).run(file_name);
+	}
+	db.exec("commit");
+} catch (error) {
+	db.exec("rollback");
+	console.error("migrations error:", error);
+	process.exit(1);
+}
+// END MIGRATIONS
+
+const users = /** @type {{ id: number, number: string, name?: string, is_owner: 1 | 0 }[]} */ ([]);
 
 const client = new wa.Client({
 	puppeteer: {
@@ -67,6 +99,7 @@ const client = new wa.Client({
 client.on("ready", async () => {
 	const version = await client.pupBrowser?.version();
 	console.log(`Bot ready with`, version);
+	load_users(true);
 });
 
 client.on("qr", (qr) => {
@@ -87,13 +120,31 @@ client.on("message", (message) => {
 });
 
 client.initialize();
-load_users();
 
-function load_users() {
+async function load_users(refresh = false) {
+	if (refresh && config.owner?.length) {
+		for (const num of config.owner) {
+			const contact = await client.getContactById(num + "@c.us").catch((e) => {
+				console.warn(`failed to get contact info of "${num}":`, e);
+				return undefined;
+			});
+			const name = contact?.name || contact?.pushname || client.info.pushname || null;
+			const query = `
+				insert into users (number, name, is_owner) values (?,?,1)
+				on conflict (number) do update set is_owner = 1
+			`;
+			db.prepare(query).run(num, name);
+		}
+
+		const placeholder = config.owner.map(() => `?`).join(",");
+		const query = `update users set is_owner = 0 where number not in (${placeholder})`;
+		db.prepare(query).run(...config.owner);
+	}
+
 	// load all since we are only small users
-	const result = db.prepare(`select * from users`).all();
+	const result = /** @type {typeof users} */ (db.prepare(`select * from users`).all());
 	users.length = 0;
-	users.push(...config.owner, ...result.map((r) => /** @type string */ (r["number"])));
+	if (result.length) users.push(...result);
 }
 
 /** @param {wa.Message} message */
@@ -103,9 +154,16 @@ async function handle_message(message) {
 	);
 	if (!features.includes(feature)) return;
 
-	if (!users.includes(message.from.split("@")[0])) {
+	const user = users.find((u) => u.number == message.from.split("@")[0]);
+	if (!user) {
 		await timers.setTimeout(1_000);
 		await message.reply(`You're not registered. Not even a little bit.`);
+		return;
+	}
+
+	if (user.is_owner != 1) {
+		await timers.setTimeout(1_000);
+		await message.reply(`Account is not active, sorry.`);
 		return;
 	}
 
@@ -124,7 +182,7 @@ async function handle_message(message) {
 		}
 
 		case "!register": {
-			if (!config.owner.includes(message.from.split("@")[0])) {
+			if (user.is_owner != 1) {
 				await timers.setTimeout(1_000);
 				await message.reply(`Whoa there, power trip - you're not the admin.`);
 				break;
@@ -139,6 +197,22 @@ async function handle_message(message) {
 
 			number = number.startsWith("62") ? number : "62" + number.slice(1);
 
+			if (name == "--toggle-active") {
+				const result = db
+					.prepare(`update users set is_active = not is_active where number = ?`)
+					.run(number);
+				const result_message =
+					result.changes > 0 ? "Gog it!" : "❌ Failed to change user active status";
+				if (result.changes > 0) load_users();
+				await message.reply(result_message);
+				break;
+			}
+
+			if (!name) {
+				const contact = await client.getContactById(number + "@c.us");
+				name = contact.name || contact.pushname || "";
+			}
+
 			const result = db
 				.prepare(`insert into users (number, name) values (?,?)`)
 				.run(number, name || null);
@@ -146,7 +220,7 @@ async function handle_message(message) {
 			if (result.changes > 0) load_users();
 
 			const result_message =
-				result.changes > 0 ? `Got it!` : `Register failed successfully, try again!`;
+				result.changes > 0 ? `Got it!` : `❌ Register failed successfully, try again!`;
 
 			await timers.setTimeout(1_000);
 			await message.reply(result_message);
@@ -229,7 +303,88 @@ async function handle_message(message) {
 			break;
 		}
 
-		// TODO: !money
+		case "!money": {
+			const [first, ...rest] = args;
+
+			if (/^-?\d+$/.test(first)) {
+				if (!rest[0]) {
+					await message.reply(`No description? That's wild 😭`);
+					break;
+				}
+
+				let date = iso_date();
+				let description = rest.join(" ");
+
+				if (iso_date_valid(rest[0])) {
+					date = rest[0];
+					description = rest.slice(1).join(" ");
+				}
+
+				const query = `insert into bookkeeping (user_id, amount, date, description) values (?,?,?,?)`;
+				const result = db.prepare(query).run(user.id, +first, date, description);
+				const info = result.changes > 0 ? `Got it!` : `❌ Uh oh, failed to save the record.`;
+				await message.reply(info);
+				break;
+			}
+
+			if (first == "recap") {
+				const result = [
+					[
+						`This Day`,
+						`select 
+							date(date) as day,
+							sum(case when amount > 0 then amount else 0 end) as income,
+							sum(case when amount < 0 then -amount else 0 end) as expense,
+							sum(amount) as net
+						from bookkeeping
+						where user_id = ? and date = date('now', 'localtime')
+						group by day
+						order by day`,
+					],
+
+					[
+						`This Month`,
+						`select 
+							strftime('%Y-%m', date) as month,
+							sum(case when amount > 0 then amount else 0 end) as income,
+							sum(case when amount < 0 then -amount else 0 end) as expense,
+							sum(amount) as net
+						from bookkeeping
+						where user_id = ? and strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime')
+						group by month
+						order by month`,
+					],
+
+					[
+						`Last Month`,
+						`select 
+							strftime('%Y-%m', date) as month,
+							sum(case when amount > 0 then amount else 0 end) as income,
+							sum(case when amount < 0 then -amount else 0 end) as expense,
+							sum(amount) as net
+						from bookkeeping
+						where user_id = ? and strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime', '-1 month')
+						group by month
+						order by month`,
+					],
+				]
+					.map(([name, query]) => {
+						const summary = db.prepare(query).get(user.id);
+						const detail = !summary
+							? "_No record yet_"
+							: Object.entries(summary)
+									.map(([k, v]) => `${k}: *${typeof v == "number" ? rupiah(v) : v}*`)
+									.join(" \n");
+						return `🗓️ *${name}*: \n${detail}`;
+					})
+					.join(" \n\n");
+				await message.reply(result);
+				break;
+			}
+
+			await message.reply(`Nah, that argument's sus.`);
+			break;
+		}
 
 		default:
 			await timers.setTimeout(3_000);
@@ -338,6 +493,39 @@ async function cleanup_dir(path) {
 		await fsp.rm(path, { recursive: true, force: true });
 	} catch (error) {
 		console.warn(`cleanup ${path} failed:`, error);
+	}
+}
+
+function iso_date(date = new Date()) {
+	return date.toISOString().slice(0, 10);
+}
+
+/** @param {string} str  */
+function iso_date_valid(str) {
+	const regex = /^\d{4}-\d{2}-\d{2}$/;
+	if (!regex.test(str)) return false;
+
+	const date = new Date(str);
+	return date instanceof Date && !isNaN(date?.getTime()) && str === iso_date(date);
+}
+
+/**
+ * @param {number | string} value
+ * @param {boolean} prefix
+ * @returns {string}
+ */
+function rupiah(value, prefix = true) {
+	try {
+		const amount = value ? Number(value) : 0;
+		return Intl.NumberFormat("id-ID", {
+			maximumFractionDigits: 2,
+			minimumFractionDigits: 0,
+			style: prefix ? "currency" : "decimal",
+			currency: "IDR",
+		}).format(amount);
+	} catch (error) {
+		console.warn("helper#rupiah", error?.message);
+		return "Err!";
 	}
 }
 
