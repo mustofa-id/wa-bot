@@ -10,6 +10,8 @@ import timers from "node:timers/promises";
 import qrt from "qrcode-terminal";
 import wa from "whatsapp-web.js";
 
+// TODO: support more country calling code other than 62. Use libphonenumber-js.
+
 const config = {
 	owner: process.env.OWNER_NUMBERS?.split(",") || [],
 	data_dir: new URL("data/", import.meta.url),
@@ -22,7 +24,16 @@ fs.mkdirSync(config.data_dir, { recursive: true });
 const db = new sqlite.DatabaseSync(new URL("db.sqlite", config.data_dir));
 const options = /** @type {const} */ ([
 	["!help", "Show help"],
-	["!register", "Register new user"],
+	[
+		"!users",
+		"List all users. First argument is rows limit (default to 10) or _name_ search query.",
+	],
+	[
+		"!register",
+		"Register new user. First argument is WA number that starts with 62. Second arguments " +
+			"is optional user name. The second argument can be *--toggle-active* to toggle user " +
+			"active status by its number.",
+	],
 	["!compress", "Compress an attached (or reply sent) document (video or image) for Status."],
 	[
 		"!ffmpeg",
@@ -37,7 +48,7 @@ const options = /** @type {const} */ ([
 			"Syntax: *!money <amount> <yyyy-mm-dd date?> <description>*. " +
 			"Example: *!money -17000 Buy milk* or  *!money 150000 2025-09-24 Got donation*. " +
 			"Note: Date is optional that default to current date. Use a minus sign (-) for " +
-			"expenses. To get recaps, type: *!money recap*.",
+			"expenses. To get recaps, *!money recap* or *!money recap with <user id>*.",
 	],
 ]);
 
@@ -50,6 +61,17 @@ const features = options.map((o) => o[0]);
 /**
  * @template T
  * @typedef {T | Promise<T>} MaybePromise
+ */
+
+/**
+ * @typedef {{
+ * 	id: number;
+ * 	number: string;
+ * 	name?: string;
+ * 	is_owner: 1 | 0;
+ * 	is_active: 1 | 0;
+ * 	created_at: string;
+ * }} User
  */
 
 // BEGIN MIGRATIONS
@@ -85,8 +107,6 @@ try {
 }
 // END MIGRATIONS
 
-const users = /** @type {{ id: number, number: string, name?: string, is_owner: 1 | 0 }[]} */ ([]);
-
 const client = new wa.Client({
 	puppeteer: {
 		args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
@@ -97,10 +117,10 @@ const client = new wa.Client({
 });
 
 client.on("ready", async () => {
+	init_users();
+	schedule_daily("19:00", notify_money_tracker);
 	const version = await client.pupBrowser?.version();
 	console.log(`Bot ready with`, version);
-	load_users(true);
-	schedule_daily("19:00", notify_money_tracker);
 });
 
 client.on("qr", (qr) => {
@@ -122,30 +142,24 @@ client.on("message", (message) => {
 
 client.initialize();
 
-async function load_users(refresh = false) {
-	if (refresh && config.owner?.length) {
-		for (const num of config.owner) {
-			const contact = await client.getContactById(num + "@c.us").catch((e) => {
-				console.warn(`failed to get contact info of "${num}":`, e);
-				return undefined;
-			});
-			const name = contact?.name || contact?.pushname || client.info.pushname || null;
-			const query = `
-				insert into users (number, name, is_owner) values (?,?,1)
-				on conflict (number) do update set is_owner = 1
-			`;
-			db.prepare(query).run(num, name);
-		}
-
-		const placeholder = config.owner.map(() => `?`).join(",");
-		const query = `update users set is_owner = 0 where number not in (${placeholder})`;
-		db.prepare(query).run(...config.owner);
+async function init_users() {
+	if (!config.owner?.length) return;
+	for (const num of config.owner) {
+		const contact = await client.getContactById(num + "@c.us").catch((e) => {
+			console.warn(`failed to get contact info of "${num}":`, e);
+			return undefined;
+		});
+		const name = contact?.name || contact?.pushname || client.info.pushname || null;
+		const query = `
+			insert into users (number, name, is_owner) values (?,?,1)
+			on conflict (number) do update set is_owner = 1
+		`;
+		db.prepare(query).run(num, name);
 	}
 
-	// load all since we are only small users
-	const result = /** @type {typeof users} */ (db.prepare(`select * from users`).all());
-	users.length = 0;
-	if (result.length) users.push(...result);
+	const placeholder = config.owner.map(() => `?`).join(",");
+	const query = `update users set is_owner = 0 where number not in (${placeholder})`;
+	db.prepare(query).run(...config.owner);
 }
 
 function notify_money_tracker() {
@@ -173,22 +187,20 @@ async function handle_message(message) {
 	);
 	if (!features.includes(feature)) return;
 
-	const user = users.find((u) => u.number == message.from.split("@")[0]);
+	const user = /** @type {User} */ (
+		db.prepare(`select * from users where number = ?`).get(message.from.split("@")[0])
+	);
+
 	if (!user) {
 		await timers.setTimeout(1_000);
 		await message.reply(`You're not registered. Not even a little bit.`);
 		return;
 	}
 
-	if (user.is_owner != 1) {
+	if (user.is_active != 1) {
 		await timers.setTimeout(1_000);
 		await message.reply(`Account is not active, sorry.`);
 		return;
-	}
-
-	if (feature != "!help") {
-		await timers.setTimeout(1_000);
-		await message.reply("Please wait…");
 	}
 
 	switch (feature) {
@@ -197,6 +209,43 @@ async function handle_message(message) {
 			const commands = options.map((f) => `- \`${f[0]}\` ${f[1]} \n`).join("");
 			const info = `🧰 *Multipurpose Tools*: \n\nAvailable commands: \n${commands}`;
 			await client.sendMessage(message.from, info);
+			break;
+		}
+
+		case "!users": {
+			await timers.setTimeout(5_000);
+			if (user.is_owner != 1) {
+				await message.reply(`Whoa there, power trip - you're not the admin.`);
+				break;
+			}
+
+			let limit = 10;
+			let filters = "";
+
+			// check positive number, gt 0, and allow leading 0.
+			if (/^0*[1-9]\d*$/.test(args[0])) {
+				limit = +args[0];
+			} else if (args.length > 0) {
+				filters = args.join(" ");
+			}
+
+			const where = filters ? ` where lower(name) like ? ` : "";
+			const params = filters ? [`%${filters.toLowerCase()}%`, limit] : [limit];
+			const result = db
+				.prepare(`select id, name, number, is_active from users ${where} limit ?`)
+				.all(...params);
+			const info = result.length
+				? result
+						.map(
+							(u) =>
+								"👤 " +
+								Object.entries(u)
+									.map(([k, v]) => `${k}: ${v}`)
+									.join(" \n")
+						)
+						.join("\n\n")
+				: "_Poof! Nothing appeared. Try a different spell?_";
+			await message.reply(info);
 			break;
 		}
 
@@ -221,8 +270,8 @@ async function handle_message(message) {
 					.prepare(`update users set is_active = not is_active where number = ?`)
 					.run(number);
 				const result_message =
-					result.changes > 0 ? "Gog it!" : "❌ Failed to change user active status";
-				if (result.changes > 0) load_users();
+					result.changes > 0 ? "Got it!" : "❌ Failed to change user active status";
+				await timers.setTimeout(3_000);
 				await message.reply(result_message);
 				break;
 			}
@@ -235,13 +284,9 @@ async function handle_message(message) {
 			const result = db
 				.prepare(`insert into users (number, name) values (?,?)`)
 				.run(number, name || null);
-
-			if (result.changes > 0) load_users();
-
 			const result_message =
 				result.changes > 0 ? `Got it!` : `❌ Register failed successfully, try again!`;
-
-			await timers.setTimeout(1_000);
+			await timers.setTimeout(3_000);
 			await message.reply(result_message);
 			break;
 		}
@@ -259,6 +304,8 @@ async function handle_message(message) {
 			/** @type {wa.Message | undefined} */
 			let result_message;
 
+			await timers.setTimeout(2_000);
+			await message.reply("Please wait…");
 			try {
 				if (media.type == "video") {
 					const result = await convert_video(media.data);
@@ -306,6 +353,8 @@ async function handle_message(message) {
 				67_000
 			);
 
+			await timers.setTimeout(2_000);
+			await message.reply("Please wait…");
 			try {
 				const result = await ffmpeg({ base64: media.data, ext: `.${ext}`, cmd_args });
 				const content = wa.MessageMedia.fromFilePath(result.output);
@@ -323,6 +372,7 @@ async function handle_message(message) {
 		}
 
 		case "!money": {
+			await timers.setTimeout(3_000);
 			const [first, ...rest] = args;
 
 			if (/^-?\d+$/.test(first)) {
@@ -347,6 +397,18 @@ async function handle_message(message) {
 			}
 
 			if (first == "recap") {
+				/** @type {number | undefined} */
+				let with_user_id = undefined;
+				if (rest[0] == "with" && /\d+/.test(rest[1])) {
+					if (user.is_owner != 1) {
+						await message.reply(`Only admins can snoop on everyone's tracker, sorry.`);
+						break;
+					}
+
+					with_user_id = +rest[1];
+				}
+
+				const user_filter = ` user_id in (?${with_user_id ? ",?" : ""})`;
 				const result = [
 					[
 						`This Day`,
@@ -356,7 +418,8 @@ async function handle_message(message) {
 							sum(case when amount < 0 then -amount else 0 end) as expense,
 							sum(amount) as net
 						from bookkeeping
-						where user_id = ? and date = date('now', 'localtime')
+						where date = date('now', 'localtime') 
+							and ${user_filter}
 						group by day
 						order by day`,
 					],
@@ -369,7 +432,8 @@ async function handle_message(message) {
 							sum(case when amount < 0 then -amount else 0 end) as expense,
 							sum(amount) as net
 						from bookkeeping
-						where user_id = ? and strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime')
+						where strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime') 
+							and ${user_filter}
 						group by month
 						order by month`,
 					],
@@ -382,13 +446,15 @@ async function handle_message(message) {
 							sum(case when amount < 0 then -amount else 0 end) as expense,
 							sum(amount) as net
 						from bookkeeping
-						where user_id = ? and strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime', '-1 month')
+						where strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime', '-1 month') 
+							and ${user_filter}
 						group by month
 						order by month`,
 					],
 				]
 					.map(([name, query]) => {
-						const summary = db.prepare(query).get(user.id);
+						const params = with_user_id ? [user.id, with_user_id] : [user.id];
+						const summary = db.prepare(query).get(...params);
 						const detail = !summary
 							? "_No record yet_"
 							: Object.entries(summary)
