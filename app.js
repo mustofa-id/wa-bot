@@ -9,7 +9,7 @@ import sqlite from "node:sqlite";
 import timers from "node:timers/promises";
 import qrt from "qrcode-terminal";
 import wa from "whatsapp-web.js";
-import * as i18n from "./i18n";
+import * as i18n from "./i18n/index.js";
 
 // TODO: support more country calling code other than 62. Use libphonenumber-js.
 
