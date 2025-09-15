@@ -100,6 +100,7 @@ client.on("ready", async () => {
 	const version = await client.pupBrowser?.version();
 	console.log(`Bot ready with`, version);
 	load_users(true);
+	schedule_daily("19:00", notify_money_tracker);
 });
 
 client.on("qr", (qr) => {
@@ -145,6 +146,24 @@ async function load_users(refresh = false) {
 	const result = /** @type {typeof users} */ (db.prepare(`select * from users`).all());
 	users.length = 0;
 	if (result.length) users.push(...result);
+}
+
+function notify_money_tracker() {
+	const query = `
+		select u.id, u.number
+		from users u
+		where not exists (
+			select 1
+			from bookkeeping b
+			where b.user_id = u.id
+			and b.date = date('now', 'localtime')
+		)
+	`;
+
+	for (const user of db.prepare(query).all()) {
+		const message = `👀 We didn't see any \`!money\` trackers from you today. Wanna add one before the day ends?`;
+		client.sendMessage(user["number"] + "@c.us", message);
+	}
 }
 
 /** @param {wa.Message} message */
@@ -585,4 +604,43 @@ async function ffmpeg(params) {
 	});
 
 	return { dir, output };
+}
+
+/**
+ * Schedule a function to run daily at a given time (HH:mm, 24-hour format).
+ *
+ * @param {string} time - The time of day, e.g. "19:00" for 7 PM.
+ * @param {() => MaybePromise<unknown>} task - The function to execute.
+ */
+function schedule_daily(time, task) {
+	function get_delay() {
+		const [hours, minutes] = time.split(":").map(Number);
+		const now = new Date();
+		const next = new Date();
+
+		next.setHours(hours, minutes, 0, 0);
+
+		// If the scheduled time has already passed today, schedule for tomorrow
+		if (next <= now) {
+			next.setDate(next.getDate() + 1);
+		}
+
+		return next.getTime() - now.getTime();
+	}
+
+	function schedule_next() {
+		const delay = get_delay();
+		console.info(`Next run of [${time}] scheduled in ${(delay / 1000 / 60).toFixed(2)} minutes`);
+
+		setTimeout(() => {
+			try {
+				task();
+			} catch (err) {
+				console.error("Error in scheduled task:", err);
+			}
+			schedule_next(); // reschedule for the next day
+		}, delay);
+	}
+
+	schedule_next();
 }
