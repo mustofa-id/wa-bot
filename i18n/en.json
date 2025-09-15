@@ -1,7 +1,7 @@
 {
 	"APP_DESC": "*Multipurpose Tools*: \n\nAvailable commands:",
 	"CMD_HELP": "Show help",
-	"CMD_USERS": "List all users. First argument is rows limit (default to 10) or _name_ search query.",
+	"CMD_USERS": "List all users. First argument is rows limit (default to 10) or _part of name_ search query.",
 	"CMD_REGISTER": "Register new user. First argument is WA number that starts with 62. Second arguments is optional user name. The second argument can be *--toggle-active* to toggle user active status by its number.",
 	"CMD_COMPRESS": "Compress an attached (or reply sent) document (video or image) for Status.",
 	"CMD_FFMPEG": "Run the *ffmpeg* command with the attached (or reply sent) document. The first argument is the output file extension and the remaining arguments are *ffmpeg* parameters. For example: *!ffmpeg mp4 -r 30 -preset medium*.",

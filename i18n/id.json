@@ -1,7 +1,7 @@
 {
 	"APP_DESC": "*Alat Serbaguna*: \n\nPerintah yang tersedia:",
 	"CMD_HELP": "Tampilkan bantuan",
-	"CMD_USERS": "Daftar semua pengguna. Argumen pertama adalah batas baris (default 10) atau _nama_ untuk pencarian.",
+	"CMD_USERS": "Daftar semua pengguna. Argumen pertama adalah batas baris (default 10) atau _penggalan nama_ untuk pencarian.",
 	"CMD_REGISTER": "Daftarkan pengguna baru. Argumen pertama adalah nomor WA yang dimulai dengan 62. Argumen kedua adalah nama pengguna opsional. Argumen kedua juga bisa *--toggle-active* untuk mengubah status aktif pengguna berdasarkan nomornya.",
 	"CMD_COMPRESS": "Kompres dokumen terlampir (atau balasan) berupa video atau gambar untuk Status.",
 	"CMD_FFMPEG": "Jalankan perintah *ffmpeg* dengan dokumen terlampir (atau balasan). Argumen pertama adalah ekstensi file output dan sisanya adalah parameter *ffmpeg*. Contoh: *!ffmpeg mp4 -r 30 -preset medium*.",
