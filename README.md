@@ -22,8 +22,11 @@ Edit `.env` file:
 # set here (optional default to chromium)
 CHROME_PATH=your-browser-path
 
-# bot owner numbers starts with 62 and split by comma
+# bot owner numbers starts with 62 (for now) and split by comma
 OWNER_NUMBERS=6285300001111,6289600001111
+
+# Language code default to "en". See i18n/index.js for more details.
+APP_LANG=en
 ```
 
 Start the bot by simply using the `pnpm start` command, or run it as a service with `pm2`:
