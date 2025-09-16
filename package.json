@@ -1,7 +1,7 @@
 {
 	"name": "wa-bot",
-	"version": "0.0.1",
-	"description": "WhatsApp bot for better video and image quality sharing",
+	"version": "0.0.2",
+	"description": "WhatsApp bot for multipurpose tools",
 	"type": "module",
 	"main": "app.js",
 	"scripts": {
@@ -18,5 +18,8 @@
 	"dependencies": {
 		"qrcode-terminal": "^0.12.0",
 		"whatsapp-web.js": "^1.34.1"
+	},
+	"devDependencies": {
+		"prettier": "^3.6.2"
 	}
 }

@@ -14,6 +14,10 @@ importers:
       whatsapp-web.js:
         specifier: ^1.34.1
         version: 1.34.1
+    devDependencies:
+      prettier:
+        specifier: ^3.6.2
+        version: 3.6.2
 
 packages:
 
@@ -288,6 +292,11 @@ packages:
 
   pend@1.2.0:
     resolution: {integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==}
+
+  prettier@3.6.2:
+    resolution: {integrity: sha512-I7AIg5boAr5R0FFtJ6rCfD+LFsWHp81dolrFD8S79U9tb8Az2nGrJncnMSnys+bpQJfRUzqs9hnA81OAA3hCuQ==}
+    engines: {node: '>=14'}
+    hasBin: true
 
   process-nextick-args@2.0.1:
     resolution: {integrity: sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==}
@@ -731,6 +740,8 @@ snapshots:
   path-is-absolute@1.0.1: {}
 
   pend@1.2.0: {}
+
+  prettier@3.6.2: {}
 
   process-nextick-args@2.0.1:
     optional: true

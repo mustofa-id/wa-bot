@@ -10,6 +10,7 @@ import timers from "node:timers/promises";
 import qrt from "qrcode-terminal";
 import wa from "whatsapp-web.js";
 import * as i18n from "./i18n/index.js";
+import pkg from "./package.json" with { type: "json" };
 
 // TODO: support more country calling code other than 62. Use libphonenumber-js.
 
@@ -112,21 +113,13 @@ client.on("qr", (qr) => {
 });
 
 client.on("message_create", (message) => {
-	/** @type {wa.Chat | undefined} */ let chat;
-	handle_message(message, (c) => {
-		chat = c;
-		chat?.sendStateTyping();
-	})
-		.catch(async (e) => {
-			console.error("handle_message error:", e);
-			await timers.setTimeout(1_000);
-			await message //
-				.reply(str.MSG_HANDLE_ERR + ` \n\n_Error: ${e.message}`)
-				.catch(console.error);
-		})
-		.finally(() => {
-			chat?.clearState();
-		});
+	handle_message(message).catch(async (e) => {
+		console.error("handle_message error:", e);
+		await timers.setTimeout(1_000);
+		await message //
+			.reply(str.MSG_HANDLE_ERR + ` \n\n_Error: ${e.message}`)
+			.catch(console.error);
+	});
 });
 
 client.initialize();
@@ -168,18 +161,15 @@ function notify_money_tracker() {
 	}
 }
 
-/**
- * @param {wa.Message} message
- * @param {(chat: wa.Chat) => void =} on_start
- */
-async function handle_message(message, on_start) {
+/** @param {wa.Message} message */
+async function handle_message(message) {
 	// @ts-expect-error The _data is actually exists
 	const notify_name = message["_data"]?.notifyName || "noname";
 	console.log(`Receive "${message.type}" from ${message.from} <${notify_name}>`);
 
 	// check if cmd valid
 	const [feature, ...args] = message.body.trim().split(/\s+/);
-	if (!features.includes(/** @type {Feature} */ (feature))) return;
+	if (!features.includes(/** @type {Feature} */ (feature)) || !message.from) return;
 
 	// avoid loop if from group and it's me
 	const [contact, chat] = await Promise.all([message.getContact(), message.getChat()]);
@@ -188,7 +178,7 @@ async function handle_message(message, on_start) {
 	const number = chat.isGroup ? contact.number : message.from.split("@")[0];
 	const user = /** @type {User} */ (db.prepare(`select * from users where number = ?`).get(number));
 
-	on_start?.(chat);
+	chat.sendStateTyping();
 
 	if (!user) {
 		await timers.setTimeout(1_000);
@@ -206,7 +196,7 @@ async function handle_message(message, on_start) {
 		case "!help": {
 			await timers.setTimeout(2_000);
 			const commands = options.map((f) => `- \`${f[0]}\` ${f[1]} \n`).join("");
-			const info = `🧰 ${str.APP_DESC} \n${commands}`;
+			const info = `🧰 ${str.APP_DESC} \n${commands} \n© 2025 • v${pkg.version}`;
 			await client.sendMessage(message.from, info);
 			break;
 		}
@@ -354,6 +344,7 @@ async function handle_message(message, on_start) {
 			try {
 				const result = await ffmpeg({ base64: media.data, ext: `.${ext}`, cmd_args });
 				const content = wa.MessageMedia.fromFilePath(result.output);
+				if (media.filename) content.filename = `${path.parse(media.filename).name}.${ext}`;
 				await message.reply(content, undefined, {
 					sendMediaAsDocument: true,
 					caption: str.MSG_FFMPEG_OK,
