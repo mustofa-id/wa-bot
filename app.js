@@ -112,9 +112,11 @@ client.on("qr", (qr) => {
 });
 
 client.on("message", (message) => {
-	console.log(
-		`Receive "${message.type}" from ${message.from} <${message["_data"]?.notifyName || "noname"}>`
-	);
+	message.getContact().then((c) => {
+		const name = c.name || c.pushname || "noname";
+		console.log(`Receive "${message.type}" from ${message.from} <${name}>`);
+	});
+
 	handle_message(message).catch(async (e) => {
 		console.error("handle_message error:", e);
 		await timers.setTimeout(1_000);
@@ -589,7 +591,7 @@ function rupiah(value, prefix = true) {
 			currency: "IDR",
 		}).format(amount);
 	} catch (error) {
-		console.warn("helper#rupiah", error?.message);
+		console.warn("helper#rupiah", error);
 		return "Err!";
 	}
 }
@@ -601,6 +603,7 @@ function rupiah(value, prefix = true) {
  * @param {number =} max
  */
 function set_random_interval(callback, min = 1, max = 1) {
+	/** @type {NodeJS.Timeout | undefined} */
 	let timer_id;
 	let running = true;
 
