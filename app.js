@@ -111,17 +111,22 @@ client.on("qr", (qr) => {
 	qrt.generate(qr, { small: true });
 });
 
-client.on("message", (message) => {
-	console.log(
-		`Receive "${message.type}" from ${message.from} <${message["_data"]?.notifyName || "noname"}>`
-	);
-	handle_message(message).catch(async (e) => {
-		console.error("handle_message error:", e);
-		await timers.setTimeout(1_000);
-		await message //
-			.reply(str.MSG_HANDLE_ERR + ` \n\n_Error: ${e.message}`)
-			.catch(console.error);
-	});
+client.on("message_create", (message) => {
+	/** @type {wa.Chat | undefined} */ let chat;
+	handle_message(message, (c) => {
+		chat = c;
+		chat?.sendStateTyping();
+	})
+		.catch(async (e) => {
+			console.error("handle_message error:", e);
+			await timers.setTimeout(1_000);
+			await message //
+				.reply(str.MSG_HANDLE_ERR + ` \n\n_Error: ${e.message}`)
+				.catch(console.error);
+		})
+		.finally(() => {
+			chat?.clearState();
+		});
 });
 
 client.initialize();
@@ -163,16 +168,27 @@ function notify_money_tracker() {
 	}
 }
 
-/** @param {wa.Message} message */
-async function handle_message(message) {
-	const [feature, ...args] = /** @type {[Feature, ...string[]]} */ (
-		message.body.trim().toLowerCase().split(/\s+/)
-	);
-	if (!features.includes(feature)) return;
+/**
+ * @param {wa.Message} message
+ * @param {(chat: wa.Chat) => void =} on_start
+ */
+async function handle_message(message, on_start) {
+	// @ts-expect-error The _data is actually exists
+	const notify_name = message["_data"]?.notifyName || "noname";
+	console.log(`Receive "${message.type}" from ${message.from} <${notify_name}>`);
 
-	const user = /** @type {User} */ (
-		db.prepare(`select * from users where number = ?`).get(message.from.split("@")[0])
-	);
+	// check if cmd valid
+	const [feature, ...args] = message.body.trim().split(/\s+/);
+	if (!features.includes(/** @type {Feature} */ (feature))) return;
+
+	// avoid loop if from group and it's me
+	const [contact, chat] = await Promise.all([message.getContact(), message.getChat()]);
+	if (chat.isGroup && (contact.isMe || message.fromMe)) return;
+
+	const number = chat.isGroup ? contact.number : message.from.split("@")[0];
+	const user = /** @type {User} */ (db.prepare(`select * from users where number = ?`).get(number));
+
+	on_start?.(chat);
 
 	if (!user) {
 		await timers.setTimeout(1_000);
@@ -186,7 +202,7 @@ async function handle_message(message) {
 		return;
 	}
 
-	switch (feature) {
+	switch (/** @type {Feature} */ (feature)) {
 		case "!help": {
 			await timers.setTimeout(2_000);
 			const commands = options.map((f) => `- \`${f[0]}\` ${f[1]} \n`).join("");
@@ -377,18 +393,27 @@ async function handle_message(message) {
 			}
 
 			if (first == "recap") {
-				/** @type {number | undefined} */
-				let with_user_id = undefined;
+				const recap_user_ids = [user.id];
 				if (rest[0] == "with" && /\d+/.test(rest[1])) {
 					if (user.is_owner != 1) {
 						await message.reply(str.MSG_ADMIN_ONLY);
 						break;
 					}
-
-					with_user_id = +rest[1];
+					recap_user_ids.push(+rest[1]);
 				}
 
-				const user_filter = ` user_id in (?${with_user_id ? ",?" : ""})`;
+				if (rest[0] == "all" && chat.isGroup) {
+					const gc = /** @type {wa.GroupChat} */ (chat);
+					const gp_numbers = gc.participants.map((p) => p.id.user);
+					const placeholder = gp_numbers.map(() => `?`).join(",");
+					db.prepare(`select id from users where number in (${placeholder})`)
+						.all(...gp_numbers)
+						.forEach((r) => {
+							recap_user_ids.push(/** @type {number} */ (r.id));
+						});
+				}
+
+				const in_user_ids = ` in (${recap_user_ids.map(() => `?`).join(",")})`;
 				const result = [
 					[
 						str.L_TODAY,
@@ -399,7 +424,7 @@ async function handle_message(message) {
 							sum(amount) as net
 						from bookkeeping
 						where date = date('now', 'localtime') 
-							and ${user_filter}
+							and user_id ${in_user_ids}
 						group by day
 						order by day`,
 					],
@@ -413,7 +438,7 @@ async function handle_message(message) {
 							sum(amount) as net
 						from bookkeeping
 						where strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime') 
-							and ${user_filter}
+							and user_id ${in_user_ids}
 						group by month
 						order by month`,
 					],
@@ -427,14 +452,13 @@ async function handle_message(message) {
 							sum(amount) as net
 						from bookkeeping
 						where strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime', '-1 month') 
-							and ${user_filter}
+							and user_id ${in_user_ids}
 						group by month
 						order by month`,
 					],
 				]
 					.map(([name, query]) => {
-						const params = with_user_id ? [user.id, with_user_id] : [user.id];
-						const summary = db.prepare(query).get(...params);
+						const summary = db.prepare(query).get(...recap_user_ids);
 						const detail = !summary
 							? str.MSG_MONEY_RECAP_EMPTY
 							: Object.entries(summary)
@@ -443,7 +467,14 @@ async function handle_message(message) {
 						return `🗓️ *${name}*: \n${detail}`;
 					})
 					.join(" \n\n");
-				await message.reply(result);
+
+				const user_names = db
+					.prepare(`select coalesce(name, number) as display from users where id ${in_user_ids}`)
+					.all(...recap_user_ids)
+					.map((r) => r.display)
+					.join(" • ");
+
+				await message.reply(`🧑‍🧑‍🧒‍🧒 *${user_names}* \n\n${result}`);
 				break;
 			}
 
@@ -589,7 +620,7 @@ function rupiah(value, prefix = true) {
 			currency: "IDR",
 		}).format(amount);
 	} catch (error) {
-		console.warn("helper#rupiah", error?.message);
+		console.warn("helper#rupiah", error);
 		return "Err!";
 	}
 }
@@ -601,14 +632,13 @@ function rupiah(value, prefix = true) {
  * @param {number =} max
  */
 function set_random_interval(callback, min = 1, max = 1) {
+	/** @type {NodeJS.Timeout | undefined} */
 	let timer_id;
 	let running = true;
 
 	async function run() {
 		if (!running) return;
-
-		await callback?.();
-
+		if (timer_id) await callback?.();
 		const delay = Math.floor(Math.random() * (max - min + 1) + min);
 		timer_id = setTimeout(run, delay);
 	}
