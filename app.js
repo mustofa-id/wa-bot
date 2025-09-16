@@ -27,6 +27,8 @@ fs.mkdirSync(config.data_dir, { recursive: true });
 const str = i18n[config.lang];
 if (!str) throw new Error(`Invalid "env.APP_LANG" config: "${config.lang}"`);
 
+const fmt_list_conj = new Intl.ListFormat(config.lang, { style: "short", type: "conjunction" });
+
 const db = new sqlite.DatabaseSync(new URL("db.sqlite", config.data_dir));
 const options = /** @type {const} */ ([
 	["!help", str.CMD_HELP],
@@ -462,10 +464,10 @@ async function handle_message(message) {
 				const user_names = db
 					.prepare(`select coalesce(name, number) as display from users where id ${in_user_ids}`)
 					.all(...recap_user_ids)
-					.map((r) => r.display)
-					.join(" • ");
+					.map((r) => /** @type {string} */ (r.display));
 
-				await message.reply(`🧑‍🧑‍🧒‍🧒 *${user_names}* \n\n${result}`);
+				const icon = user_names.length > 1 ? "🧑‍🧑‍🧒‍🧒" : "👤";
+				await message.reply(`${icon} *${fmt_list_conj.format(user_names)}* \n\n${result}`);
 				break;
 			}
 
