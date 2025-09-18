@@ -20,6 +20,7 @@ const config = {
 	migrations_dir: new URL("migrations/", import.meta.url),
 	chrome_path: process.env.CHROME_PATH,
 	lang: /** @type {keyof typeof i18n} */ (process.env.APP_LANG || "en"),
+	ready_at: /** @type {Date | null} */ (null),
 };
 
 fs.mkdirSync(config.data_dir, { recursive: true });
@@ -104,8 +105,9 @@ const client = new wa.Client({
 });
 
 client.on("ready", async () => {
+	config.ready_at = new Date();
 	init_users();
-	schedule_daily("19:00", notify_money_tracker);
+	schedule_daily("19:00", run_money_tracker_reminder);
 	const version = await client.pupBrowser?.version();
 	console.log(`Bot ready with`, version);
 });
@@ -146,17 +148,18 @@ async function init_users() {
 	db.prepare(query).run(...config.owner);
 }
 
-function notify_money_tracker() {
-	const query = `
-		select u.id, u.number
+function run_money_tracker_reminder() {
+	const query = `select u.id, u.number
 		from users u
-		where u.is_active = 1 and not exists (
-			select 1
-			from bookkeeping b
-			where b.user_id = u.id
-			and b.date = date('now', 'localtime')
-		)
-	`;
+		left join user_settings s on s.user_id = u.id
+		where u.is_active = 1 
+			and s.money_daily_reminder = 1 
+			and not exists (
+				select 1
+				from bookkeeping b
+				where b.user_id = u.id
+				and b.date = date('now', 'localtime')
+			)`;
 
 	for (const user of db.prepare(query).all()) {
 		client.sendMessage(user["number"] + "@c.us", str.MSG_NO_MONEY_TODAY);
@@ -168,6 +171,13 @@ async function handle_message(message) {
 	// @ts-expect-error The _data is actually exists
 	const notify_name = message["_data"]?.notifyName || "noname";
 	console.log(`Receive "${message.type}" from ${message.from} <${notify_name}>`);
+
+	// check if client ready
+	if (!config.ready_at) return;
+
+	// don't handle expired message
+	const expired = new Date(message.timestamp * 1000) < config.ready_at;
+	if (expired) return;
 
 	// check if cmd valid
 	const [feature, ...args] = message.body.trim().split(/\s+/);
@@ -382,6 +392,30 @@ async function handle_message(message) {
 				const result = db.prepare(query).run(user.id, +first, date, description);
 				const info = result.changes > 0 ? str.MSG_SUCCESS : str.MSG_MONEY_SAVE_FAILED;
 				await message.reply(info);
+				break;
+			}
+
+			if (first == "reminder") {
+				if (!rest[0]) {
+					const settings = db
+						.prepare(`select money_daily_reminder from user_settings where user_id = ?`)
+						.get(user.id);
+					const reminder_state =
+						settings?.["money_daily_reminder"] == 1
+							? str.MSG_SETTING_ENABLED
+							: str.MSG_SETTING_DISABLED;
+					await message.reply(reminder_state);
+					break;
+				}
+
+				const state = { disabled: 0, 0: 0, enabled: 1, 1: 1 }[rest[0]];
+				if (state == undefined) {
+					await message.reply(str.MSG_INVALID_SETTING_VAL);
+					break;
+				}
+
+				const result = db.prepare(`update user_settings set money_daily_reminder = ?`).run(state);
+				await message.reply(result?.changes > 0 ? str.MSG_SUCCESS : str.MSG_NO_CHANGES);
 				break;
 			}
 

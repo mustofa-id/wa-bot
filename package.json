@@ -1,6 +1,6 @@
 {
 	"name": "wa-bot",
-	"version": "0.0.2",
+	"version": "0.1.0",
 	"description": "WhatsApp bot for multipurpose tools",
 	"type": "module",
 	"main": "app.js",
