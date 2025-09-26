@@ -433,7 +433,10 @@ async function handle_message(message) {
 
 				if (rest[0] == "all" && chat.isGroup) {
 					const gc = /** @type {wa.GroupChat} */ (chat);
-					const gp_numbers = gc.participants.map((p) => p.id.user);
+					const gp_numbers = gc.participants
+						.map((p) => p.id.user)
+						.filter((p) => p != client.info.wid.user);
+
 					const placeholder = gp_numbers.map(() => `?`).join(",");
 					db.prepare(`select id from users where number in (${placeholder})`)
 						.all(...gp_numbers)
