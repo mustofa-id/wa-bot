@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import sqlite from "node:sqlite";
 import timers from "node:timers/promises";
+import util from "node:util";
 import qrt from "qrcode-terminal";
 import wa from "whatsapp-web.js";
 import * as i18n from "./i18n/index.js";
@@ -38,6 +39,7 @@ const options = /** @type {const} */ ([
 	["!compress", str.CMD_COMPRESS],
 	["!ffmpeg", str.CMD_FFMPEG],
 	["!money", str.CMD_MONEY],
+	["!dl", str.CMD_DL],
 ]);
 
 const features = options.map((o) => o[0]);
@@ -509,6 +511,57 @@ async function handle_message(message) {
 			break;
 		}
 
+		case "!dl": {
+			const [url, type] = args;
+
+			if (!url || !URL.canParse(url)) {
+				await timers.setTimeout(1_000);
+				await message.reply(str.MSG_INVALID_URL);
+				break;
+			}
+
+			const clear_long_notifier = set_random_interval(
+				async () => await message.reply(str.MSG_NEED_MORE_TIME),
+				57_000,
+				67_000
+			);
+
+			await timers.setTimeout(2_000);
+			await message.reply(str.MSG_WAIT);
+
+			try {
+				const result_path = await dl_video(url);
+				if (!result_path) {
+					await timers.setTimeout(1_000);
+					await message.reply(str.MSG_DL_FAILED);
+					break;
+				}
+
+				if (type == "file") {
+					const content = wa.MessageMedia.fromFilePath(result_path);
+					await message.reply(content, undefined, {
+						sendMediaAsDocument: true,
+						caption: str.MSG_FFMPEG_OK,
+					});
+					cleanup_dir(result_path);
+					break;
+				}
+
+				const compressed = await ffmpeg({
+					file_path: result_path,
+					ext: ".mp4",
+					cmd_args: get_video_status_config().flat(),
+				});
+				const video = wa.MessageMedia.fromFilePath(compressed.output);
+				await client.sendMessage(message.from, video);
+				cleanup_dir(compressed.dir);
+			} finally {
+				clear_long_notifier();
+			}
+
+			break;
+		}
+
 		default:
 			await timers.setTimeout(3_000);
 			await message.reply(str.MSG_UNKNOWN_CMD);
@@ -559,9 +612,8 @@ async function get_attached_doc(message, filters = [], delay = 2_000) {
 	return { ...media, type };
 }
 
-/** @param {string} base64 video file in base64 */
-async function convert_video(base64) {
-	const args = [
+function get_video_status_config() {
+	return [
 		// Ensure fast-start for web/social media
 		["-movflags", "+faststart"],
 
@@ -584,12 +636,37 @@ async function convert_video(base64) {
 		["-ar", "48000"],
 		["-ac", "2"],
 	];
+}
 
+/** @param {string} base64 video file in base64 */
+async function convert_video(base64) {
+	const args = get_video_status_config();
 	return ffmpeg({
 		base64,
 		ext: ".mp4",
 		cmd_args: args.flat(),
 	});
+}
+
+/** @param {string} url */
+async function dl_video(url) {
+	const output = path.join(os.tmpdir(), `${crypto.randomUUID()}.%(ext)s`);
+	const { stdout } = await yt_dlp(
+		[
+			url, //
+			["-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]"],
+			["--merge-output-format", "mp4"],
+			["-o", output],
+			["--print", "after_move:filepath"],
+			"--no-part", // don’t leave .part files
+			"--no-cache-dir", // avoid cache in tmp scenarios
+			"--no-playlist", // treat URL as single video
+			"--quiet",
+			"--no-warnings",
+			"--no-progress",
+		].flat()
+	);
+	return stdout.split(/\r?\n/).filter(Boolean).pop();
 }
 
 /** @param {string} base64 image file in base64 */
@@ -680,15 +757,20 @@ function set_random_interval(callback, min = 1, max = 1) {
 
 /**
  *
- * @param {{ base64: string; ext: `.${string}`; cmd_args?: string[] }} params
+ * @param {({file_path: string;} | {base64: string;}) & { ext: `.${string}`; cmd_args?: string[] }} params
  */
 async function ffmpeg(params) {
 	const id = crypto.randomUUID();
 	const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "media-"));
-	const input = path.join(dir, `${id}.bin`);
 	const output = path.join(dir, `${id}${params.ext}`);
 
-	await fsp.writeFile(input, Buffer.from(params.base64, "base64"));
+	let input = "";
+	if ("base64" in params) {
+		input = path.join(dir, `${id}.bin`);
+		await fsp.writeFile(input, Buffer.from(params.base64, "base64"));
+	} else {
+		input = params.file_path;
+	}
 
 	const default_args = ["-y" /* overwrite */, "-hide_banner", ["-loglevel", "error"]];
 	const args = [...default_args, ["-i", input], ...(params.cmd_args || []), output];
@@ -699,7 +781,7 @@ async function ffmpeg(params) {
 		ffmpeg.on("error", reject);
 		ffmpeg.on("close", (code) => {
 			if (code != 0) {
-				console.error("convert_media:", error_output);
+				console.error("ffmpeg error:", error_output);
 				return reject(new Error(`convert failed: ${code}`));
 			}
 			resolve(void 0);
@@ -707,6 +789,27 @@ async function ffmpeg(params) {
 	});
 
 	return { dir, output };
+}
+
+const exec_file_async = util.promisify(proc.execFile);
+
+/**
+ * Run yt-dlp with given arguments.
+ * @param {string[]} args - Arguments to pass to yt-dlp (like ['-f', 'best', url])
+ * @returns {Promise<{ stdout: string, stderr: string }>}
+ */
+export async function yt_dlp(args) {
+	try {
+		const { stdout, stderr } = await exec_file_async("yt-dlp", args, {
+			maxBuffer: 1024 * 1024 * 10, // increase buffer if needed (10MB)
+			windowsHide: true,
+		});
+
+		return { stdout, stderr };
+	} catch (/** @type {any} */ err) {
+		// child_process error includes stdout/stderr if available
+		throw new Error(`yt-dlp failed: ${err.message}\n${err.stdout || ""}\n${err.stderr || ""}`);
+	}
 }
 
 /**

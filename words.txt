@@ -1,4 +1,6 @@
 autoincrement
+bestaudio
+bestvideo
 bruh
 faststart
 lanczos
