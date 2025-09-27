@@ -705,7 +705,17 @@ async function cleanup_dir(path) {
 }
 
 function iso_date(date = new Date()) {
-	return date.toISOString().slice(0, 10);
+	return `${date.getFullYear()}-${lead0(date.getMonth() + 1)}-${lead0(date.getDate())}`;
+}
+
+/**
+ * Leading zero
+ * @param {string | number} val
+ * @param {number =} length
+ * @returns {string}
+ */
+function lead0(val, length = 2) {
+	return String(val).padStart(length, "0");
 }
 
 /** @param {string} str  */
