@@ -13,8 +13,6 @@ import wa from "whatsapp-web.js";
 import * as i18n from "./i18n/index.js";
 import pkg from "./package.json" with { type: "json" };
 
-// TODO: support more country calling code other than 62. Use libphonenumber-js.
-
 const config = {
 	owner: process.env.OWNER_NUMBERS?.split(",") || [],
 	data_dir: new URL("data/", import.meta.url),
@@ -33,16 +31,17 @@ const fmt_list_conj = new Intl.ListFormat(config.lang, { style: "short", type: "
 
 const db = new sqlite.DatabaseSync(new URL("db.sqlite", config.data_dir));
 const options = /** @type {const} */ ([
-	["!help", str.CMD_HELP],
-	["!users", str.CMD_USERS],
-	["!register", str.CMD_REGISTER],
-	["!compress", str.CMD_COMPRESS],
-	["!ffmpeg", str.CMD_FFMPEG],
-	["!money", str.CMD_MONEY],
-	["!dl", str.CMD_DL],
+	// command, alias, description
+	["!help", "", str.CMD_HELP],
+	["!users", "", str.CMD_USERS],
+	["!register", "!reg", str.CMD_REGISTER],
+	["!compress", "", str.CMD_COMPRESS],
+	["!ffmpeg", "", str.CMD_FFMPEG],
+	["!money", "!mn", str.CMD_MONEY],
+	["!download", "!dl", str.CMD_DL],
 ]);
 
-const features = options.map((o) => o[0]);
+const features = options.map((o) => [o[0], o[1]]).flat();
 
 /**
  * @typedef {typeof features[number]} Feature
@@ -209,7 +208,9 @@ async function handle_message(message) {
 	switch (/** @type {Feature} */ (feature)) {
 		case "!help": {
 			await timers.setTimeout(2_000);
-			const commands = options.map((f) => `- \`${f[0]}\` ${f[1]} \n`).join("");
+			const commands = options
+				.map((f) => `- \`${f[0]}\`${f[1] ? ` | \`${f[1]}\`` : ""} ${f[2]} \n`)
+				.join("");
 			const info = `🧰 ${str.APP_DESC} \n${commands} \n© 2025 • v${pkg.version}`;
 			await client.sendMessage(message.from, info);
 			break;
@@ -252,6 +253,7 @@ async function handle_message(message) {
 			break;
 		}
 
+		case "!reg":
 		case "!register": {
 			if (user.is_owner != 1) {
 				await timers.setTimeout(1_000);
@@ -259,34 +261,34 @@ async function handle_message(message) {
 				break;
 			}
 
-			const [first, ...rest] = args;
-			if (!/^\d{10,13}$/.test(first)) {
+			const [user_num, ...rest] = args;
+
+			// simple international phone validation
+			if (!/^[1-9]\d{5,14}$/.test(user_num)) {
 				await timers.setTimeout(1_000);
 				await message.reply(str.MSG_INVALID_NUMBER);
 				break;
 			}
 
-			const number = first.startsWith("62") ? first : "62" + first.slice(1);
-			let name = rest.join(" ");
-
-			if (name == "--toggle-active") {
+			if (rest[0] == "--toggle-active") {
 				const result = db
 					.prepare(`update users set is_active = not is_active where number = ?`)
-					.run(number);
+					.run(user_num);
 				const result_message = result.changes > 0 ? str.MSG_SUCCESS : str.MSG_TOGGLE_ACTIVE_FAILED;
 				await timers.setTimeout(3_000);
 				await message.reply(result_message);
 				break;
 			}
 
+			let name = rest.join(" ").trim();
 			if (!name) {
-				const contact = await client.getContactById(number + "@c.us");
+				const contact = await client.getContactById(user_num + "@c.us");
 				name = contact.name || contact.pushname || "";
 			}
 
 			const result = db
 				.prepare(`insert into users (number, name) values (?,?)`)
-				.run(number, name || null);
+				.run(user_num, name || null);
 			const result_message = result.changes > 0 ? str.MSG_SUCCESS : str.MSG_REGISTER_FAILED;
 			await timers.setTimeout(3_000);
 			await message.reply(result_message);
@@ -372,6 +374,7 @@ async function handle_message(message) {
 			break;
 		}
 
+		case "!mn":
 		case "!money": {
 			await timers.setTimeout(3_000);
 			const [first, ...rest] = args;
@@ -514,7 +517,8 @@ async function handle_message(message) {
 			break;
 		}
 
-		case "!dl": {
+		case "!dl":
+		case "!download": {
 			const [url, type] = args;
 
 			if (!url || !URL.canParse(url)) {
@@ -653,7 +657,8 @@ async function convert_video(base64) {
 
 /** @param {string} url */
 async function dl_video(url) {
-	const output = path.join(os.tmpdir(), `${crypto.randomUUID()}.%(ext)s`);
+	// TODO: cache based on url
+	const output = path.join(os.tmpdir(), `%(title)s.%(ext)s`);
 	const { stdout } = await yt_dlp(
 		[
 			url, //

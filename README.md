@@ -22,7 +22,7 @@ Edit `.env` file:
 # set here (optional default to chromium)
 CHROME_PATH=your-browser-path
 
-# bot owner numbers starts with 62 (for now) and split by comma
+# bot owner numbers that starts with country calling code
 OWNER_NUMBERS=6285300001111,6289600001111
 
 # Language code default to "en". See i18n/index.js for more details.
