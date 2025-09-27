@@ -35,7 +35,7 @@ const options = /** @type {const} */ ([
 	["!help", "", str.CMD_HELP],
 	["!users", "", str.CMD_USERS],
 	["!register", "!reg", str.CMD_REGISTER],
-	["!compress", "", str.CMD_COMPRESS],
+	["!compress", "!cmp", str.CMD_COMPRESS],
 	["!ffmpeg", "", str.CMD_FFMPEG],
 	["!money", "!mn", str.CMD_MONEY],
 	["!download", "!dl", str.CMD_DL],
@@ -295,6 +295,7 @@ async function handle_message(message) {
 			break;
 		}
 
+		case "!cmp":
 		case "!compress": {
 			const media = await get_attached_doc(message, ["video", "image"]);
 			if (!media) break;
@@ -632,10 +633,8 @@ function get_video_status_config() {
 		["-profile:v", "high"],
 		["-level", "4.1"],
 		["-pix_fmt", "yuv420p"],
-		["-preset", "medium"],
 		["-crf", "20"], // quality (lower = higher quality); 18–23 typical
 		["-maxrate", "6M"], // cap to ~6 Mbps (good for most social platforms)
-		["-bufsize", "12M"],
 
 		// Audio: AAC stereo 128k @ 48kHz (very standard)
 		["-c:a", "aac"],
@@ -790,10 +789,31 @@ async function ffmpeg(params) {
 		input = params.file_path;
 	}
 
-	const default_args = ["-y" /* overwrite */, "-hide_banner", ["-loglevel", "error"]];
-	const args = [...default_args, ["-i", input], ...(params.cmd_args || []), output];
+	// Gentle defaults:
+	// -threads 2     → only 2 CPU threads
+	// -preset veryfast (or slower) → reduces CPU spikes
+	// -bufsize 1M    → smaller buffer to keep memory predictable
+	// -max_muxing_queue_size 1024 → prevents runaway memory usage
+	const args = [
+		"-y", // overwrite output
+		"-hide_banner",
+		"-re", // processes input at real-time speed instead of as fast as possible
+		["-loglevel", "error"],
+		["-threads", "2"],
+		["-i", input],
+		["-preset", "veryfast"],
+		["-bufsize", "1M"],
+		["-max_muxing_queue_size", "1024"],
+		...(params.cmd_args || []),
+		output,
+	].flat();
+
 	await new Promise((resolve, reject) => {
-		const ffmpeg = proc.spawn(`ffmpeg`, args.flat(), { windowsHide: true });
+		const ffmpeg = proc.spawn(
+			`systemd-run`,
+			["--user", "--scope", "-p", "CPUQuota=50%", "ffmpeg", ...args],
+			{ windowsHide: true }
+		);
 		let error_output = "";
 		ffmpeg.stderr.on("data", (data) => (error_output += data.toString()));
 		ffmpeg.on("error", reject);

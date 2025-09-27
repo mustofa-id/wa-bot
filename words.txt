@@ -10,4 +10,6 @@ maxrate
 moov
 movflags
 mstf
+muxing
 pushname
+veryfast
