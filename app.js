@@ -301,8 +301,8 @@ async function handle_message(message) {
 
 			const clear_long_notifier = set_random_interval(
 				async () => await message.reply(str.MSG_NEED_MORE_TIME),
-				57_000,
-				67_000
+				90_000,
+				360_000
 			);
 
 			/** @type {wa.Message | undefined} */
@@ -351,8 +351,8 @@ async function handle_message(message) {
 
 			const clear_long_notifier = set_random_interval(
 				async () => await message.reply(str.MSG_NEED_MORE_TIME),
-				57_000,
-				67_000
+				180_000,
+				520_000
 			);
 
 			await timers.setTimeout(2_000);
@@ -529,8 +529,8 @@ async function handle_message(message) {
 
 			const clear_long_notifier = set_random_interval(
 				async () => await message.reply(str.MSG_NEED_MORE_TIME),
-				57_000,
-				67_000
+				250_000,
+				410_000
 			);
 
 			await timers.setTimeout(2_000);

@@ -19,7 +19,7 @@
 	"MSG_NO_CHANGES": "Nothing has changes",
 	"MSG_REGISTER_FAILED": "❌ Register failed successfully, try again!",
 	"MSG_TOGGLE_ACTIVE_FAILED": "❌ Failed to change user active status",
-	"MSG_NEED_MORE_TIME": "Hold up, need a sec to go through this file…",
+	"MSG_NEED_MORE_TIME": "Hold up, need a sec to go through this request…",
 	"MSG_WAIT": "Please wait…",
 	"MSG_COMPRESS_OK": "I did my best. Sorry if it wasn't up to your fantasy standards.",
 	"MSG_COMPRESS_INVALID_ARGS": "Nothing I can do.",

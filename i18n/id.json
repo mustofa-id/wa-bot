@@ -19,7 +19,7 @@
 	"MSG_NO_CHANGES": "Tidak ada perubahan",
 	"MSG_REGISTER_FAILED": "❌ Pendaftaran gagal, coba lagi!",
 	"MSG_TOGGLE_ACTIVE_FAILED": "❌ Gagal mengubah status aktif pengguna",
-	"MSG_NEED_MORE_TIME": "Tunggu sebentar, butuh waktu untuk memproses file ini…",
+	"MSG_NEED_MORE_TIME": "Tunggu sebentar, butuh waktu untuk memproses permintaan ini…",
 	"MSG_WAIT": "Harap tunggu…",
 	"MSG_COMPRESS_OK": "Yang terbaik saya lakukan. Maaf kalau tidak sesuai ekspektasi.",
 	"MSG_COMPRESS_INVALID_ARGS": "Tidak ada yang bisa saya lakukan.",
