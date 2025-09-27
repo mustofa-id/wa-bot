@@ -182,11 +182,13 @@ async function handle_message(message) {
 
 	// check if cmd valid
 	const [feature, ...args] = message.body.trim().split(/\s+/);
-	if (!features.includes(/** @type {Feature} */ (feature)) || !message.from) return;
+	if (!features.includes(/** @type {Feature} */ (feature)) || !message.from || message.fromMe) {
+		return;
+	}
 
 	// avoid loop if from group and it's me
 	const [contact, chat] = await Promise.all([message.getContact(), message.getChat()]);
-	if (chat.isGroup && (contact.isMe || message.fromMe)) return;
+	if (chat.isGroup && contact.isMe) return;
 
 	const number = chat.isGroup ? contact.number : message.from.split("@")[0];
 	const user = /** @type {User} */ (db.prepare(`select * from users where number = ?`).get(number));
