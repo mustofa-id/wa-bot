@@ -6,7 +6,7 @@
 	"CMD_COMPRESS": "Kompres dokumen terlampir (atau balasan) berupa video atau gambar untuk Status.",
 	"CMD_FFMPEG": "Jalankan perintah *ffmpeg* dengan dokumen terlampir (atau balasan). Argumen pertama adalah ekstensi file output dan sisanya adalah parameter *ffmpeg*. Contoh: *!ffmpeg mp4 -r 30 -preset medium*.",
 	"CMD_MONEY": "Lacak pemasukan dan pengeluaran Anda. Sintaks: *!money <jumlah> <yyyy-mm-dd tanggal?> <deskripsi>*. Contoh: *!money -17000 Beli susu* atau *!money 150000 2025-09-24 Dapat donasi*. Catatan: Tanggal opsional dan default ke tanggal hari ini. Gunakan tanda minus (-) untuk pengeluaran. Untuk rekap, gunakan *!money recap* atau *!money recap with <id pengguna>* atau *!money recap all* (hanya di group). Anda akan mendapatkan pengingat harian, untuk mengaturnya: *!money reminder <disabled|0|enabled|1>*",
-	"CMD_DL": "Unduh video dari URL. Sintaks: *!dl <url>*. Tambahkan *file* setelah URL untuk menerima video sebagai dokumen, bukan sebagai video.",
+	"CMD_DL": "Unduh video dari URL yang diberikan. Sintaks: *!dl <url>*. Tambahkan *compress* setelah URL untuk mengompres video untuk Status WA. Anda juga dapat mengompres berkasnya nanti dengan membalas (quote-reply) pesan tersebut menggunakan perintah kompres.",
 	"MSG_HANDLE_ERR": "Sepertinya otak saya nge-hang barusan.",
 	"MSG_UNKNOWN_CMD": "Tunggu sebentar, perintah ini belum bisa dipakai.",
 	"MSG_NO_MONEY_TODAY": "👀 Belum ada catatan `!money` dari Anda hari ini. Mau catat sebelum hari berganti?",

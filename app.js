@@ -545,24 +545,24 @@ async function handle_message(message) {
 					break;
 				}
 
-				if (type == "file") {
-					const content = wa.MessageMedia.fromFilePath(result_path);
-					await message.reply(content, undefined, {
-						sendMediaAsDocument: true,
-						caption: str.MSG_FFMPEG_OK,
+				if (type == "compress") {
+					const compressed = await ffmpeg({
+						file_path: result_path,
+						ext: ".mp4",
+						cmd_args: get_video_status_config().flat(),
 					});
-					cleanup_dir(result_path);
+					const video = wa.MessageMedia.fromFilePath(compressed.output);
+					await client.sendMessage(message.from, video);
+					cleanup_dir(compressed.dir);
 					break;
 				}
 
-				const compressed = await ffmpeg({
-					file_path: result_path,
-					ext: ".mp4",
-					cmd_args: get_video_status_config().flat(),
+				const content = wa.MessageMedia.fromFilePath(result_path);
+				await message.reply(content, undefined, {
+					sendMediaAsDocument: true,
+					caption: str.MSG_FFMPEG_OK,
 				});
-				const video = wa.MessageMedia.fromFilePath(compressed.output);
-				await client.sendMessage(message.from, video);
-				cleanup_dir(compressed.dir);
+				cleanup_dir(result_path);
 			} finally {
 				clear_long_notifier();
 			}
