@@ -171,7 +171,10 @@ function run_money_tracker_reminder() {
 async function handle_message(message) {
 	// @ts-expect-error The _data is actually exists
 	const notify_name = message["_data"]?.notifyName || "noname";
-	console.log(`Receive "${message.type}" from ${message.from} <${notify_name}>`);
+	console.log(
+		`Receive "${message.type}" from ${message.from} <${notify_name}>`,
+		message.body?.slice(0, 20) + (message.body?.length > 20 ? "..." : "")
+	);
 
 	// check if client ready
 	if (!config.ready_at) return;
