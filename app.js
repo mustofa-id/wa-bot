@@ -175,6 +175,7 @@ async function handle_message(message) {
 
 	// check if client ready
 	if (!config.ready_at) return;
+	if (!message.from) return;
 
 	// don't handle expired message
 	const expired = new Date(message.timestamp * 1000) < config.ready_at;
@@ -182,7 +183,7 @@ async function handle_message(message) {
 
 	// check if cmd valid
 	const [feature, ...args] = message.body.trim().split(/\s+/);
-	if (!features.includes(/** @type {Feature} */ (feature)) || !message.from) return;
+	if (!features.includes(/** @type {Feature} */ (feature))) return;
 
 	// avoid loop if from group and it's me
 	const [contact, chat] = await Promise.all([message.getContact(), message.getChat()]);
