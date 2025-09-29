@@ -637,6 +637,9 @@ function get_video_status_config() {
 		["-pix_fmt", "yuv420p"],
 		["-crf", "20"], // quality (lower = higher quality); 18–23 typical
 		["-maxrate", "6M"], // cap to ~6 Mbps (good for most social platforms)
+		["-preset", "veryfast"],
+		["-max_muxing_queue_size", "1024"],
+		["-bufsize", "1M"],
 
 		// Audio: AAC stereo 128k @ 48kHz (very standard)
 		["-c:a", "aac"],
@@ -803,9 +806,6 @@ async function ffmpeg(params) {
 		["-loglevel", "error"],
 		["-threads", "2"],
 		["-i", input],
-		["-preset", "veryfast"],
-		["-bufsize", "1M"],
-		["-max_muxing_queue_size", "1024"],
 		...(params.cmd_args || []),
 		output,
 	].flat();
