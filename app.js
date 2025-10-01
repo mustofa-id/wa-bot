@@ -41,7 +41,10 @@ const options = /** @type {const} */ ([
 	["!download", "!dl", str.CMD_DL],
 ]);
 
-const features = options.map((o) => [o[0], o[1]]).flat();
+const features = options
+	.map((o) => [o[0], o[1]])
+	.flat()
+	.filter((r) => !!r);
 
 /**
  * @typedef {typeof features[number]} Feature
