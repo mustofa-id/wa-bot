@@ -40,5 +40,11 @@
 	"MSG_DL_FAILED": "Download failed",
 	"L_TODAY": "Today",
 	"L_THIS_MONTH": "This Month",
-	"L_LAST_MONTH": "Last Month"
+	"L_LAST_MONTH": "Last Month",
+	"L_ALL_TIME": "All time",
+	"L_MONTH": "Month",
+	"L_DAY": "Day",
+	"L_INCOME": "Income",
+	"L_EXPENSE": "Expense",
+	"L_NET": "Net"
 }

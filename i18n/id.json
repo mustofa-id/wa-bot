@@ -40,5 +40,11 @@
 	"MSG_DL_FAILED": "Unduh gagal",
 	"L_TODAY": "Hari ini",
 	"L_THIS_MONTH": "Bulan ini",
-	"L_LAST_MONTH": "Bulan lalu"
+	"L_LAST_MONTH": "Bulan lalu",
+	"L_ALL_TIME": "Semua waktu",
+	"L_MONTH": "Bulan",
+	"L_DAY": "Hari",
+	"L_INCOME": "Pemasukan",
+	"L_EXPENSE": "Pengeluaran",
+	"L_NET": "Bersih"
 }

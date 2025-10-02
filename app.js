@@ -457,14 +457,16 @@ async function handle_message(message) {
 				}
 
 				const in_user_ids = ` in (${recap_user_ids.map(() => `?`).join(",")})`;
+
+				// TODO: make safe query
 				const result = [
 					[
 						str.L_TODAY,
 						`select 
-							date(date) as day,
-							sum(case when amount > 0 then amount else 0 end) as income,
-							sum(case when amount < 0 then -amount else 0 end) as expense,
-							sum(amount) as net
+							date(date) as "${str.L_DAY}",
+							sum(case when amount > 0 then amount else 0 end) as "${str.L_INCOME}",
+							sum(case when amount < 0 then -amount else 0 end) as "${str.L_EXPENSE}",
+							sum(amount) as "${str.L_NET}"
 						from bookkeeping
 						where date = date('now', 'localtime') 
 							and user_id ${in_user_ids}
@@ -475,10 +477,10 @@ async function handle_message(message) {
 					[
 						str.L_THIS_MONTH,
 						`select 
-							strftime('%Y-%m', date) as month,
-							sum(case when amount > 0 then amount else 0 end) as income,
-							sum(case when amount < 0 then -amount else 0 end) as expense,
-							sum(amount) as net
+							strftime('%Y-%m', date) as "${str.L_MONTH}",
+							sum(case when amount > 0 then amount else 0 end) as "${str.L_INCOME}",
+							sum(case when amount < 0 then -amount else 0 end) as "${str.L_EXPENSE}",
+							sum(amount) as "${str.L_NET}"
 						from bookkeeping
 						where strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime') 
 							and user_id ${in_user_ids}
@@ -489,15 +491,25 @@ async function handle_message(message) {
 					[
 						str.L_LAST_MONTH,
 						`select 
-							strftime('%Y-%m', date) as month,
-							sum(case when amount > 0 then amount else 0 end) as income,
-							sum(case when amount < 0 then -amount else 0 end) as expense,
-							sum(amount) as net
+							strftime('%Y-%m', date) as "${str.L_MONTH}",
+							sum(case when amount > 0 then amount else 0 end) as "${str.L_INCOME}",
+							sum(case when amount < 0 then -amount else 0 end) as "${str.L_EXPENSE}",
+							sum(amount) as "${str.L_NET}"
 						from bookkeeping
 						where strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime', '-1 month') 
 							and user_id ${in_user_ids}
 						group by month
 						order by month`,
+					],
+
+					[
+						str.L_ALL_TIME,
+						`select 
+							sum(case when amount > 0 then amount else 0 end) as "${str.L_INCOME}",
+							sum(case when amount < 0 then -amount else 0 end) as "${str.L_EXPENSE}",
+							sum(amount) as "${str.L_NET}"
+						from bookkeeping
+						where user_id ${in_user_ids}`,
 					],
 				]
 					.map(([name, query]) => {
