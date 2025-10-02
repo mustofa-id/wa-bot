@@ -470,8 +470,7 @@ async function handle_message(message) {
 						from bookkeeping
 						where date = date('now', 'localtime') 
 							and user_id ${in_user_ids}
-						group by day
-						order by day`,
+						group by "${str.L_DAY}"`,
 					],
 
 					[
@@ -484,8 +483,7 @@ async function handle_message(message) {
 						from bookkeeping
 						where strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime') 
 							and user_id ${in_user_ids}
-						group by month
-						order by month`,
+						group by "${str.L_MONTH}"`,
 					],
 
 					[
@@ -498,8 +496,7 @@ async function handle_message(message) {
 						from bookkeeping
 						where strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime', '-1 month') 
 							and user_id ${in_user_ids}
-						group by month
-						order by month`,
+						group by "${str.L_MONTH}"`,
 					],
 
 					[
