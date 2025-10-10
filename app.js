@@ -20,6 +20,7 @@ const config = {
 	chrome_path: process.env.CHROME_PATH,
 	lang: /** @type {keyof typeof i18n} */ (process.env.APP_LANG || "en"),
 	ready_at: /** @type {Date | null} */ (null),
+	payday: 25,
 };
 
 fs.mkdirSync(config.data_dir, { recursive: true });
@@ -340,7 +341,7 @@ async function handle_message(message) {
 				await timers.setTimeout(2_000);
 				await result_message.reply(str.MSG_COMPRESS_OK);
 			} else {
-				await message.reply(str.MSG_COMPRESS_INVALID_ARGS);
+				await message.reply(str.MSG_UNKNOWN_PARAMS);
 			}
 
 			break;
@@ -432,6 +433,40 @@ async function handle_message(message) {
 				break;
 			}
 
+			if (first == "list") {
+				const filter_list = [str.L_THIS_MONTH, str.L_LAST_MONTH, str.L_PAYDAY];
+				const filter = rest.join(" ").trim();
+
+				if (!filter || !filter_list.some((f) => eq_ic(f, filter))) {
+					const info = `${str.MSG_UNKNOWN_PARAMS}. ${str.MSG_AVAILABLE_PARAMS} \n`;
+					await message.reply(info + fmt_list_conj.format(filter_list.map((f) => `*${f}*`)));
+					break;
+				}
+
+				// TODO: DRY with recap queries
+
+				let query = `
+					select amount, date, description from bookkeeping 
+					where user_id = ? and `;
+
+				if (eq_ic(filter, str.L_THIS_MONTH)) {
+					query += `strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime')`;
+				} else if (eq_ic(filter, str.L_LAST_MONTH)) {
+					query += `strftime('%Y-%m', date) = strftime('%Y-%m', 'now', 'localtime', '-1 month')`;
+				} else if (eq_ic(filter, str.L_PAYDAY)) {
+					query += `date between date('now', 'localtime', 'start of month', '-1 month', '+${config.payday - 1} days')
+               			and date('now', 'localtime', 'start of month', '+${config.payday - 2} days')`;
+				}
+
+				const result = db
+					.prepare(query + ` order by date`)
+					.all(user.id)
+					.map((r) => `- ${r.date} ${rupiah(r.amount + "")} 🗎 ${r.description}`)
+					.join(" \n");
+				await message.reply(result.trim() || str.MSG_MONEY_RECAP_EMPTY);
+				break;
+			}
+
 			if (first == "recap") {
 				const recap_user_ids = [user.id];
 				if (rest[0] == "with" && /\d+/.test(rest[1])) {
@@ -471,6 +506,20 @@ async function handle_message(message) {
 						where date = date('now', 'localtime') 
 							and user_id ${in_user_ids}
 						group by "${str.L_DAY}"`,
+					],
+
+					[
+						str.L_PAYDAY,
+						`select 
+							strftime('%Y-%m', date('now', 'localtime', 'start of month', '-1 month', '+${config.payday - 1} days')) as "${str.L_MONTH}",
+							sum(case when amount > 0 then amount else 0 end) as "${str.L_INCOME}",
+							sum(case when amount < 0 then -amount else 0 end) as "${str.L_EXPENSE}",
+							sum(amount) as "${str.L_NET}"
+						from bookkeeping
+						where date between date('now', 'localtime', 'start of month', '-1 month', '+${config.payday - 1} days')
+               				and date('now', 'localtime', 'start of month', '+${config.payday - 2} days')
+							and user_id ${in_user_ids}
+						group by "${str.L_MONTH}"`,
 					],
 
 					[
@@ -530,7 +579,7 @@ async function handle_message(message) {
 				break;
 			}
 
-			await message.reply(str.MSG_MONEY_INVALID_ARGS);
+			await message.reply(str.MSG_UNKNOWN_PARAMS);
 			break;
 		}
 
@@ -747,7 +796,7 @@ function iso_date_valid(str) {
 
 /**
  * @param {number | string} value
- * @param {boolean} prefix
+ * @param {boolean} prefix default true
  * @returns {string}
  */
 function rupiah(value, prefix = true) {
@@ -903,4 +952,14 @@ function schedule_daily(time, task) {
 	}
 
 	schedule_next();
+}
+
+/**
+ * Equal ignore case
+ * @param {string} a
+ * @param {string} b
+ */
+function eq_ic(a, b) {
+	if (!a || !b) return false;
+	return a.toLocaleLowerCase() == b.toLocaleLowerCase();
 }
