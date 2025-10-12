@@ -21,6 +21,9 @@ const config = {
 	lang: /** @type {keyof typeof i18n} */ (process.env.APP_LANG || "en"),
 	ready_at: /** @type {Date | null} */ (null),
 	payday: 25,
+	dynamic: {
+		ffmpeg_mode: /** @type {Ffmpeg_Mode} */ ("gentle"),
+	},
 };
 
 fs.mkdirSync(config.data_dir, { recursive: true });
@@ -46,6 +49,37 @@ const features = options
 	.map((o) => [o[0], o[1]])
 	.flat()
 	.filter((r) => !!r);
+
+const ffmpeg_mode_options = {
+	gentle: {
+		cpu_quota: "50%",
+		threads: "2",
+		preset: "veryfast",
+		bufsize: "1M",
+		max_muxing_queue_size: "1024",
+		realtime: true,
+	},
+	balanced: {
+		cpu_quota: "80%",
+		threads: "4",
+		preset: "faster",
+		bufsize: "4M",
+		max_muxing_queue_size: "2048",
+		realtime: false,
+	},
+	performance: {
+		cpu_quota: "100%",
+		threads: "auto",
+		preset: "ultrafast",
+		bufsize: "8M",
+		max_muxing_queue_size: "4096",
+		realtime: false,
+	},
+};
+
+/**
+ * @typedef {keyof typeof ffmpeg_mode_options} Ffmpeg_Mode
+ */
 
 /**
  * @typedef {typeof features[number]} Feature
@@ -99,6 +133,24 @@ try {
 	process.exit(1);
 }
 // END MIGRATIONS
+
+function load_dynamic_config() {
+	/** @typedef {typeof config['dynamic']} Dynamic_Config */
+
+	const app_config = /** @type {Dynamic_Config} */ (
+		db
+			.prepare(`select name, value from app_config`)
+			.all()
+			.reduce((acc, curr) => {
+				const name = /** @type {keyof Dynamic_Config} */ (curr.name);
+				acc[name] = curr.value || config.dynamic[name];
+				return acc;
+			}, {})
+	);
+	config.dynamic = { ...config.dynamic, ...app_config };
+}
+
+load_dynamic_config();
 
 const client = new wa.Client({
 	puppeteer: {
@@ -348,15 +400,39 @@ async function handle_message(message) {
 		}
 
 		case "!ffmpeg": {
-			const media = await get_attached_doc(message);
-			if (!media) break;
+			const [first, ...cmd_args] = args;
 
-			const [ext, ...cmd_args] = args;
-			if (!ext) {
+			if (first == "mode") {
+				await timers.setTimeout(2_000);
+				const mode = cmd_args[0];
+				const modes = Object.keys(ffmpeg_mode_options);
+				const modes_msg = `${str.MSG_AVAILABLE_PARAMS} ${fmt_list_conj.format(modes.map((m) => `*${m}*`))}`;
+				if (!mode) {
+					const info = `✅ ${config.dynamic.ffmpeg_mode} \n\n`;
+					await message.reply(info + modes_msg);
+					break;
+				}
+
+				if (!modes.includes(mode)) {
+					const info = `${str.MSG_UNKNOWN_PARAMS}. \n`;
+					await message.reply(info + modes_msg);
+					break;
+				}
+
+				db.prepare(`update app_config set value = ? where name = ?`).run(mode, "ffmpeg_mode");
+				load_dynamic_config(); // it's cheap, reload all XD
+				await message.reply(str.MSG_SUCCESS);
+				break;
+			}
+
+			if (!first) {
 				await timers.setTimeout(2_000);
 				await message.reply(str.MSG_FFMPEG_INVALID_EXT);
 				break;
 			}
+
+			const media = await get_attached_doc(message);
+			if (!media) break;
 
 			const clear_long_notifier = set_random_interval(
 				async () => await message.reply(str.MSG_NEED_MORE_TIME),
@@ -367,9 +443,9 @@ async function handle_message(message) {
 			await timers.setTimeout(2_000);
 			await message.reply(str.MSG_WAIT);
 			try {
-				const result = await ffmpeg({ base64: media.data, ext: `.${ext}`, cmd_args });
+				const result = await ffmpeg({ base64: media.data, ext: `.${first}`, cmd_args });
 				const content = wa.MessageMedia.fromFilePath(result.output);
-				if (media.filename) content.filename = `${path.parse(media.filename).name}.${ext}`;
+				if (media.filename) content.filename = `${path.parse(media.filename).name}.${first}`;
 				await message.reply(content, undefined, {
 					sendMediaAsDocument: true,
 					caption: str.MSG_FFMPEG_OK,
@@ -686,6 +762,7 @@ async function get_attached_doc(message, filters = [], delay = 2_000) {
 }
 
 function get_video_status_config() {
+	const mode = ffmpeg_mode_options[config.dynamic.ffmpeg_mode];
 	return [
 		// Ensure fast-start for web/social media
 		["-movflags", "+faststart"],
@@ -700,9 +777,9 @@ function get_video_status_config() {
 		["-pix_fmt", "yuv420p"],
 		["-crf", "20"], // quality (lower = higher quality); 18–23 typical
 		["-maxrate", "6M"], // cap to ~6 Mbps (good for most social platforms)
-		["-preset", "veryfast"],
-		["-max_muxing_queue_size", "1024"],
-		["-bufsize", "1M"],
+		["-preset", mode.preset],
+		["-max_muxing_queue_size", mode.max_muxing_queue_size],
+		["-bufsize", mode.bufsize],
 
 		// Audio: AAC stereo 128k @ 48kHz (very standard)
 		["-c:a", "aac"],
@@ -857,17 +934,13 @@ async function ffmpeg(params) {
 		input = params.file_path;
 	}
 
-	// Gentle defaults:
-	// -threads 2     → only 2 CPU threads
-	// -preset veryfast (or slower) → reduces CPU spikes
-	// -bufsize 1M    → smaller buffer to keep memory predictable
-	// -max_muxing_queue_size 1024 → prevents runaway memory usage
+	const mode = ffmpeg_mode_options[config.dynamic.ffmpeg_mode];
 	const args = [
 		"-y", // overwrite output
 		"-hide_banner",
-		"-re", // processes input at real-time speed instead of as fast as possible
+		...(mode.realtime ? ["-re"] : []), // processes input at real-time speed instead of as fast as possible
 		["-loglevel", "error"],
-		["-threads", "2"],
+		["-threads", mode.threads],
 		["-i", input],
 		...(params.cmd_args || []),
 		output,
@@ -876,7 +949,7 @@ async function ffmpeg(params) {
 	await new Promise((resolve, reject) => {
 		const ffmpeg = proc.spawn(
 			`systemd-run`,
-			["--user", "--scope", "-p", "CPUQuota=50%", "ffmpeg", ...args],
+			["--user", "--scope", "-p", `CPUQuota=${mode.cpu_quota}`, "ffmpeg", ...args],
 			{ windowsHide: true }
 		);
 		let error_output = "";
