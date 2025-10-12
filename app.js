@@ -419,7 +419,10 @@ async function handle_message(message) {
 					break;
 				}
 
-				db.prepare(`update app_config set value = ? where name = ?`).run(mode, "ffmpeg_mode");
+				db.prepare(
+					`insert into app_config (name, value) values (?, ?)
+					on conflict (name) do update set value = excluded.value`
+				).run("ffmpeg_mode", mode);
 				load_dynamic_config(); // it's cheap, reload all XD
 				await message.reply(str.MSG_SUCCESS);
 				break;
@@ -934,6 +937,7 @@ async function ffmpeg(params) {
 		input = params.file_path;
 	}
 
+	console.log("running ffmpeg in mode:", config.dynamic.ffmpeg_mode);
 	const mode = ffmpeg_mode_options[config.dynamic.ffmpeg_mode];
 	const args = [
 		"-y", // overwrite output
