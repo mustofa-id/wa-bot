@@ -805,7 +805,7 @@ async function convert_video(base64) {
 /** @param {string} url */
 async function dl_video(url) {
 	// TODO: cache based on url
-	const output = path.join(os.tmpdir(), `%(title)s.%(ext)s`);
+	const output = path.join(os.tmpdir(), `%(title)s-%(epoch)s.%(ext)s`);
 	const { stdout } = await yt_dlp(
 		[
 			url, //
