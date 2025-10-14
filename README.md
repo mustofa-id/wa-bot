@@ -46,4 +46,4 @@ On the first run, the bot will print a QR code that you can use to link your acc
 pm2 logs wa-bot --out --lines 100
 ```
 
-> Make sure there is [`ffmpeg`](https://ffmpeg.org/download.html) cli in your system.
+> Make sure there are [`ffmpeg`](https://ffmpeg.org/download.html) and [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) cli in your system.
