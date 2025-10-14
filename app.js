@@ -942,7 +942,7 @@ async function ffmpeg(params) {
 	const args = [
 		"-y", // overwrite output
 		"-hide_banner",
-		...(mode.realtime ? ["-re"] : []), // processes input at real-time speed instead of as fast as possible
+		...(mode.realtime ? ["-re"] : []),
 		["-loglevel", "error"],
 		["-threads", mode.threads],
 		["-i", input],
@@ -951,9 +951,10 @@ async function ffmpeg(params) {
 	].flat();
 
 	await new Promise((resolve, reject) => {
+		const pm = config.dynamic.ffmpeg_mode == "performance";
 		const ffmpeg = proc.spawn(
-			`systemd-run`,
-			["--user", "--scope", "-p", `CPUQuota=${mode.cpu_quota}`, "ffmpeg", ...args],
+			pm ? `ffmpeg` : `systemd-run`,
+			pm ? args : ["--user", "--scope", "-p", `CPUQuota=${mode.cpu_quota}`, "ffmpeg", ...args],
 			{ windowsHide: true }
 		);
 		let error_output = "";
