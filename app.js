@@ -446,7 +446,8 @@ async function handle_message(message) {
 			await timers.setTimeout(2_000);
 			await message.reply(str.MSG_WAIT);
 			try {
-				const result = await ffmpeg({ base64: media.data, ext: `.${first}`, cmd_args });
+				const ext = /** @type {`.${string}`} */ (first.startsWith(".") ? first : `.${first}`);
+				const result = await ffmpeg({ base64: media.data, ext, cmd_args });
 				const content = wa.MessageMedia.fromFilePath(result.output);
 				if (media.filename) content.filename = `${path.parse(media.filename).name}.${first}`;
 				await message.reply(content, undefined, {
@@ -537,11 +538,25 @@ async function handle_message(message) {
                			and date('now', 'localtime', 'start of month', '+${config.payday - 2} days')`;
 				}
 
-				const result = db
+				const grouped = db
 					.prepare(query + ` order by date`)
 					.all(user.id)
-					.map((r) => `- ${r.date} ${rupiah(r.amount + "")} 🗎 ${r.description}`)
-					.join(" \n");
+					.reduce((acc, item) => {
+						const group = /** @type {string} */ (item.date);
+						if (!acc[group]) acc[group] = [];
+						acc[group].push({ amount: item.amount, description: item.description });
+						return acc;
+					}, /** @type {Record<string, { amount: any, description: any }[]>} */ ({}));
+
+				const result = Object.entries(grouped)
+					.map(([date, detail]) => {
+						const desc = detail
+							.map((r) => `- ${rupiah(r.amount + "")} ${r.description}`)
+							.join(" \n");
+						return `🗓️ *${date}* \n${desc}`;
+					})
+					.join(" \n\n");
+
 				await message.reply(result.trim() || str.MSG_MONEY_RECAP_EMPTY);
 				break;
 			}
