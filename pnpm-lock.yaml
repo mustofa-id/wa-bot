@@ -12,12 +12,12 @@ importers:
         specifier: ^0.12.0
         version: 0.12.0
       whatsapp-web.js:
-        specifier: ^1.34.1
-        version: 1.34.1
+        specifier: ^1.34.2
+        version: 1.34.2
     devDependencies:
       prettier:
-        specifier: ^3.6.2
-        version: 3.6.2
+        specifier: ^3.7.4
+        version: 3.7.4
 
 packages:
 
@@ -293,8 +293,8 @@ packages:
   pend@1.2.0:
     resolution: {integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==}
 
-  prettier@3.6.2:
-    resolution: {integrity: sha512-I7AIg5boAr5R0FFtJ6rCfD+LFsWHp81dolrFD8S79U9tb8Az2nGrJncnMSnys+bpQJfRUzqs9hnA81OAA3hCuQ==}
+  prettier@3.7.4:
+    resolution: {integrity: sha512-v6UNi1+3hSlVvv8fSaoUbggEM5VErKmmpGA7Pl3HF8V6uKY7rvClBOJlH6yNwQtfTueNkGVpOv/mtWL9L4bgRA==}
     engines: {node: '>=14'}
     hasBin: true
 
@@ -394,8 +394,8 @@ packages:
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
 
-  whatsapp-web.js@1.34.1:
-    resolution: {integrity: sha512-IInGEg+F8wB9M+c61KXGZ4bpwq24ew9EgsyMYxUZ/4CQ8GW/afsGseQO4FZriQ16qpu14pFovsD6YrEYxRbyLw==}
+  whatsapp-web.js@1.34.2:
+    resolution: {integrity: sha512-M8/HV2CmQ6T67NQblDJZUA9jt9ZDOLZKO67kKQ6r9eDpkzNqVNa1uK8nNxt1hB0NqndkFGAXdcO1tq+z2hYV5A==}
     engines: {node: '>=18.0.0'}
 
   whatwg-url@5.0.0:
@@ -741,7 +741,7 @@ snapshots:
 
   pend@1.2.0: {}
 
-  prettier@3.6.2: {}
+  prettier@3.7.4: {}
 
   process-nextick-args@2.0.1:
     optional: true
@@ -886,7 +886,7 @@ snapshots:
 
   webidl-conversions@3.0.1: {}
 
-  whatsapp-web.js@1.34.1:
+  whatsapp-web.js@1.34.2:
     dependencies:
       '@pedroslopez/moduleraid': 5.0.2
       fluent-ffmpeg: 2.1.3
