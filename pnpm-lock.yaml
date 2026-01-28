@@ -12,8 +12,8 @@ importers:
         specifier: ^0.12.0
         version: 0.12.0
       whatsapp-web.js:
-        specifier: github:pedroslopez/whatsapp-web.js#main
-        version: https://codeload.github.com/pedroslopez/whatsapp-web.js/tar.gz/143662eae200fe53f20524c07a1413b60134daed
+        specifier: ^1.34.4
+        version: 1.34.4
     devDependencies:
       prettier:
         specifier: ^3.7.4
@@ -227,15 +227,6 @@ packages:
     resolution: {integrity: sha512-7hvf7/GW8e86rW0ptuwS3OcBGDjIi6SZva7hCyWC0yYry2cOPmLIjXAUHI6DK2HsnwJd9ifmt57i8eV2n4YNpw==}
     engines: {node: '>= 14'}
 
-  debug@4.3.4:
-    resolution: {integrity: sha512-PRWFHuSU3eDtQJPvnNY7Jcket1j0t5OuOsFzPPzsekD52Zl8qUfFIPEiswXqIvHWGVHOgX+7G/vCNNhehwxfkQ==}
-    engines: {node: '>=6.0'}
-    peerDependencies:
-      supports-color: '*'
-    peerDependenciesMeta:
-      supports-color:
-        optional: true
-
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
     engines: {node: '>=6.0'}
@@ -446,9 +437,6 @@ packages:
     resolution: {integrity: sha512-FP+p8RB8OWpF3YZBCrP5gtADmtXApB5AMLn+vdyA+PyxCjrCs00mjyUozssO33cwDeT3wNGdLxJ5M//YqtHAJw==}
     hasBin: true
 
-  ms@2.1.2:
-    resolution: {integrity: sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==}
-
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
@@ -650,9 +638,8 @@ packages:
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
 
-  whatsapp-web.js@https://codeload.github.com/pedroslopez/whatsapp-web.js/tar.gz/143662eae200fe53f20524c07a1413b60134daed:
-    resolution: {tarball: https://codeload.github.com/pedroslopez/whatsapp-web.js/tar.gz/143662eae200fe53f20524c07a1413b60134daed}
-    version: 1.34.3
+  whatsapp-web.js@1.34.4:
+    resolution: {integrity: sha512-UUOfuuGtYs0dEnHSkScIbquuN4k9n81kVh9YpWXATdE0V5USScGn65b/fAqHShLuSO5ZAuSwv/zcNvSIwdTABA==}
     engines: {node: '>=18.0.0'}
 
   whatwg-url@5.0.0:
@@ -948,10 +935,6 @@ snapshots:
 
   data-uri-to-buffer@6.0.2: {}
 
-  debug@4.3.4:
-    dependencies:
-      ms: 2.1.2
-
   debug@4.4.3:
     dependencies:
       ms: 2.1.3
@@ -1005,7 +988,7 @@ snapshots:
 
   extract-zip@2.0.1:
     dependencies:
-      debug: 4.3.4
+      debug: 4.4.3
       get-stream: 5.2.0
       yauzl: 2.10.0
     optionalDependencies:
@@ -1177,8 +1160,6 @@ snapshots:
     dependencies:
       minimist: 1.2.8
     optional: true
-
-  ms@2.1.2: {}
 
   ms@2.1.3: {}
 
@@ -1458,7 +1439,7 @@ snapshots:
 
   webidl-conversions@3.0.1: {}
 
-  whatsapp-web.js@https://codeload.github.com/pedroslopez/whatsapp-web.js/tar.gz/143662eae200fe53f20524c07a1413b60134daed:
+  whatsapp-web.js@1.34.4:
     dependencies:
       '@pedroslopez/moduleraid': 5.0.2
       fluent-ffmpeg: 2.1.3
