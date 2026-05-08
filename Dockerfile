@@ -11,7 +11,7 @@ ENV TZ=Asia/Jakarta
 
 WORKDIR /app
 
-COPY i18n/ migrations/ app.js package.json pnpm-workspace.yaml ./
+COPY i18n migrations app.js package.json pnpm-workspace.yaml ./
 
 RUN npm install --omit=dev
 
