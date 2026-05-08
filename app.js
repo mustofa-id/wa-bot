@@ -158,7 +158,7 @@ const client = new wa.Client({
 		executablePath: config.chrome_path || undefined,
 		headless: true,
 	},
-	authStrategy: new wa.LocalAuth({ dataPath: ".session" }),
+	authStrategy: new wa.LocalAuth({ dataPath: config.data_dir.pathname }),
 });
 
 client.on("ready", async () => {
