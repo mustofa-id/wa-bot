@@ -226,10 +226,10 @@ function run_money_tracker_reminder() {
 /** @param {wa.Message} message */
 async function handle_message(message) {
 	// @ts-expect-error The _data is actually exists
-	const notify_name = message["_data"]?.notifyName || "noname";
+	const notify_name = message.fromMe ? "BOT" : message["_data"]?.notifyName || "noname";
 	console.log(
 		`Receive "${message.type}" from ${message.from} <${notify_name}>`,
-		message.body?.slice(0, 20) + (message.body?.length > 20 ? "..." : "")
+		message.body?.slice(0, 20) + (message.body?.length > 20 ? "..." : ""),
 	);
 
 	// check if client ready
@@ -248,7 +248,7 @@ async function handle_message(message) {
 	const [contact, chat] = await Promise.all([message.getContact(), message.getChat()]);
 	if (chat.isGroup && (contact.isMe || message.fromMe)) return;
 
-	const number = chat.isGroup ? contact.number : message.from.split("@")[0];
+	const number = contact.id.user;
 	const user = /** @type {User} */ (db.prepare(`select * from users where number = ?`).get(number));
 
 	chat.sendStateTyping();
@@ -305,7 +305,7 @@ async function handle_message(message) {
 								"👤 " +
 								Object.entries(u)
 									.map(([k, v]) => `${k}: ${v}`)
-									.join(" \n")
+									.join(" \n"),
 						)
 						.join("\n\n")
 				: str.MSG_NO_RESULT;
@@ -363,7 +363,7 @@ async function handle_message(message) {
 			const clear_long_notifier = set_random_interval(
 				async () => await message.reply(str.MSG_NEED_MORE_TIME),
 				90_000,
-				360_000
+				360_000,
 			);
 
 			/** @type {wa.Message | undefined} */
@@ -421,7 +421,7 @@ async function handle_message(message) {
 
 				db.prepare(
 					`insert into app_config (name, value) values (?, ?)
-					on conflict (name) do update set value = excluded.value`
+					on conflict (name) do update set value = excluded.value`,
 				).run("ffmpeg_mode", mode);
 				load_dynamic_config(); // it's cheap, reload all XD
 				await message.reply(str.MSG_SUCCESS);
@@ -440,7 +440,7 @@ async function handle_message(message) {
 			const clear_long_notifier = set_random_interval(
 				async () => await message.reply(str.MSG_NEED_MORE_TIME),
 				180_000,
-				520_000
+				520_000,
 			);
 
 			await timers.setTimeout(2_000);
@@ -690,7 +690,7 @@ async function handle_message(message) {
 			const clear_long_notifier = set_random_interval(
 				async () => await message.reply(str.MSG_NEED_MORE_TIME),
 				250_000,
-				410_000
+				410_000,
 			);
 
 			await timers.setTimeout(2_000);
@@ -834,7 +834,7 @@ async function dl_video(url) {
 			"--quiet",
 			"--no-warnings",
 			"--no-progress",
-		].flat()
+		].flat(),
 	);
 	return stdout.split(/\r?\n/).filter(Boolean).pop();
 }
@@ -970,7 +970,7 @@ async function ffmpeg(params) {
 		const ffmpeg = proc.spawn(
 			pm ? `ffmpeg` : `systemd-run`,
 			pm ? args : ["--user", "--scope", "-p", `CPUQuota=${mode.cpu_quota}`, "ffmpeg", ...args],
-			{ windowsHide: true }
+			{ windowsHide: true },
 		);
 		let error_output = "";
 		ffmpeg.stderr.on("data", (data) => (error_output += data.toString()));
