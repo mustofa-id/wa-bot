@@ -1,11 +1,14 @@
-FROM node:24.15.0-alpine
+FROM ghcr.io/puppeteer/puppeteer:latest
 
-RUN apk add --no-cache \
+USER root
+
+RUN apt-get update && apt-get install -y \
     tzdata \
     ffmpeg \
     python3 \
-    py3-pip \
-    && pip install --break-system-packages --no-cache-dir -U yt-dlp
+    python3-pip \
+    && pip3 install --break-system-packages --no-cache-dir -U yt-dlp \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV TZ=Asia/Jakarta
 
@@ -13,9 +16,14 @@ WORKDIR /app
 
 COPY package.json pnpm-workspace.yaml ./
 COPY i18n/ ./i18n/
-COPY migrations/ ./migrations/ 
+COPY migrations/ ./migrations/
 COPY app.js ./
 
-RUN npm install --omit=dev
+RUN mkdir data
+RUN corepack enable pnpm
+RUN pnpm i --prefer-offline --prod
+
+# hard to handle permission with this :')
+# USER pptruser
 
 CMD ["node", "app.js"]

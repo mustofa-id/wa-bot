@@ -185,6 +185,11 @@ client.on("message_create", (message) => {
 
 client.initialize();
 
+process.on("SIGTERM", async () => {
+	await client.pupBrowser?.close();
+	process.exit(0);
+});
+
 async function init_users() {
 	if (!config.owner?.length) return;
 	for (const num of config.owner) {
