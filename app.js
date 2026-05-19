@@ -237,6 +237,13 @@ async function reconnect_loop() {
 		return;
 	}
 
+	// Kill the old browser process first to release userDataDir lock
+	try {
+		await client.destroy();
+	} catch {
+		// old browser may already be gone, that's fine
+	}
+
 	try {
 		await client.initialize();
 	} catch (err) {
