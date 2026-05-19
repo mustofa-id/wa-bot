@@ -21,6 +21,7 @@ const config = {
 	lang: /** @type {keyof typeof i18n} */ (process.env.APP_LANG || "en"),
 	ready_at: /** @type {Date | null} */ (null),
 	payday: 25,
+	reconnecting: false,
 	dynamic: {
 		ffmpeg_mode: /** @type {Ffmpeg_Mode} */ ("gentle"),
 	},
@@ -166,36 +167,30 @@ const client = new wa.Client({
 
 client.on("ready", async () => {
 	config.ready_at = new Date();
+	config.reconnecting = false;
 	reconnect_attempts = 0;
 	init_users();
 	schedule_daily("19:00", run_money_tracker_reminder);
 	const version = await client.pupBrowser?.version();
 	console.log(`Bot ready with`, version);
+
+	// Puppeteer-level disconnects (browser crash / page close) don't trigger
+	// the whatsapp-web.js "disconnected" event, so we must listen directly.
+	// Use `.once()` since browser/page objects are replaced on reconnect,
+	// so the old listeners die with the old objects.
+	client.pupBrowser?.once("disconnected", () => {
+		console.warn("Puppeteer browser disconnected, triggering reconnect");
+		handle_disconnect();
+	});
+	client.pupPage?.once("close", () => {
+		console.warn("Puppeteer page closed, triggering reconnect");
+		handle_disconnect();
+	});
 });
 
-client.on("disconnected", async (reason) => {
-	config.ready_at = null;
+client.on("disconnected", (reason) => {
 	console.warn("Client disconnected, reason:", reason);
-
-	if (reason === "LOGOUT") {
-		console.error("Permanent disconnect (LOGOUT/REMOVED), won't reconnect");
-		return;
-	}
-
-	if (reconnect_attempts >= MAX_RECONNECT) {
-		console.error(`Max reconnection attempts (${MAX_RECONNECT}) reached, giving up`);
-		return;
-	}
-
-	const delay = Math.min(1_000 * 2 ** reconnect_attempts, 30_000);
-	reconnect_attempts++;
-	console.log(`Reconnecting in ${delay}ms (attempt ${reconnect_attempts}/${MAX_RECONNECT})…`);
-	await timers.setTimeout(delay);
-	try {
-		await client.initialize();
-	} catch (err) {
-		console.error("Reconnection failed:", err);
-	}
+	if (reason !== "LOGOUT") handle_disconnect();
 });
 
 client.on("qr", (qr) => {
@@ -216,6 +211,49 @@ process.on("SIGTERM", async () => {
 	await client.pupBrowser?.close();
 	process.exit(0);
 });
+
+function handle_disconnect() {
+	if (config.reconnecting) return;
+	config.reconnecting = true;
+	config.ready_at = null;
+
+	if (reconnect_attempts >= MAX_RECONNECT) {
+		console.error(`Max reconnection attempts (${MAX_RECONNECT}) reached, giving up`);
+		config.reconnecting = false;
+		return;
+	}
+
+	reconnect_attempts++;
+	reconnect_loop(); // fire & forget
+}
+
+async function reconnect_loop() {
+	const delay = Math.min(1_000 * 2 ** (reconnect_attempts - 1), 30_000);
+	console.log(`Reconnecting in ${delay}ms (attempt ${reconnect_attempts}/${MAX_RECONNECT})…`);
+	await timers.setTimeout(delay);
+
+	if (config.ready_at) {
+		console.warn("reconnect_loop: already reconnected, skipping");
+		return;
+	}
+
+	try {
+		await client.initialize();
+	} catch (err) {
+		console.error("Reconnection failed:", err);
+	} finally {
+		config.reconnecting = false;
+	}
+}
+
+/** Poll until the client is ready again, with a timeout. */
+async function wait_for_ready(timeout_ms = 60_000) {
+	for (let i = 0; i < timeout_ms / 500; i++) {
+		if (config.ready_at) return true;
+		await timers.setTimeout(500);
+	}
+	return false;
+}
 
 async function init_users() {
 	if (!config.owner?.length) return;
@@ -912,12 +950,18 @@ async function msg_reply(msg, content, chatId, options) {
 		return await msg.reply(content, chatId, options);
 	} catch (/** @type any */ e) {
 		if (e?.message?.includes("detached Frame")) {
-			console.warn("msg_reply: frame detached, sending as new message");
+			console.warn("msg_reply: frame detached, trying sendMessage");
 			try {
 				return await client.sendMessage(msg.from, content, options);
 			} catch (/** @type any */ e2) {
-				if (e2?.message?.includes("Target closed") || e2.message?.includes("detached Frame")) {
-					console.warn("msg_reply: client also unavailable, giving up");
+				if (e2?.message?.includes("Target closed") || e2?.message?.includes("detached Frame")) {
+					console.warn("msg_reply: client unavailable, triggering reconnection…");
+					handle_disconnect();
+					if (await wait_for_ready()) {
+						console.warn("msg_reply: reconnected, retrying sendMessage");
+						return await client.sendMessage(msg.from, content, options);
+					}
+					console.warn("msg_reply: reconnection timed out, giving up");
 					return null;
 				}
 				throw e2;
