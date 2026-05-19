@@ -14,14 +14,14 @@ ENV TZ=Asia/Jakarta
 
 WORKDIR /app
 
-COPY package.json pnpm-workspace.yaml ./
+# Dependency manifests first — this layer only busts when deps change
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN corepack enable pnpm && pnpm i --prefer-offline --prod && mkdir data
+
+# Source code (changes more frequently, won't bust the install cache)
 COPY i18n/ ./i18n/
 COPY migrations/ ./migrations/
 COPY app.js ./
-
-RUN mkdir data
-RUN corepack enable pnpm
-RUN pnpm i --prefer-offline --prod
 
 # hard to handle permission with this :')
 # USER pptruser
