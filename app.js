@@ -26,6 +26,9 @@ const config = {
 	},
 };
 
+const MAX_RECONNECT = 10;
+let reconnect_attempts = 0;
+
 fs.mkdirSync(config.data_dir, { recursive: true });
 
 const str = i18n[config.lang];
@@ -163,10 +166,36 @@ const client = new wa.Client({
 
 client.on("ready", async () => {
 	config.ready_at = new Date();
+	reconnect_attempts = 0;
 	init_users();
 	schedule_daily("19:00", run_money_tracker_reminder);
 	const version = await client.pupBrowser?.version();
 	console.log(`Bot ready with`, version);
+});
+
+client.on("disconnected", async (reason) => {
+	config.ready_at = null;
+	console.warn("Client disconnected, reason:", reason);
+
+	if (reason === "LOGOUT") {
+		console.error("Permanent disconnect (LOGOUT/REMOVED), won't reconnect");
+		return;
+	}
+
+	if (reconnect_attempts >= MAX_RECONNECT) {
+		console.error(`Max reconnection attempts (${MAX_RECONNECT}) reached, giving up`);
+		return;
+	}
+
+	const delay = Math.min(1_000 * 2 ** reconnect_attempts, 30_000);
+	reconnect_attempts++;
+	console.log(`Reconnecting in ${delay}ms (attempt ${reconnect_attempts}/${MAX_RECONNECT})…`);
+	await timers.setTimeout(delay);
+	try {
+		await client.initialize();
+	} catch (err) {
+		console.error("Reconnection failed:", err);
+	}
 });
 
 client.on("qr", (qr) => {
@@ -177,9 +206,7 @@ client.on("message_create", (message) => {
 	handle_message(message).catch(async (e) => {
 		console.error("handle_message error:", e);
 		await timers.setTimeout(1_000);
-		await message //
-			.reply(str.MSG_HANDLE_ERR + ` \n\n_Error: ${e.message}`)
-			.catch(console.error);
+		await msg_reply(message, str.MSG_HANDLE_ERR + ` \n\n_Error: ${e.message}`);
 	});
 });
 
@@ -396,9 +423,9 @@ async function handle_message(message) {
 
 			if (result_message) {
 				await timers.setTimeout(2_000);
-				await result_message.reply(str.MSG_COMPRESS_OK);
+				await msg_reply(result_message, str.MSG_COMPRESS_OK);
 			} else {
-				await message.reply(str.MSG_UNKNOWN_PARAMS);
+				await msg_reply(message, str.MSG_UNKNOWN_PARAMS);
 			}
 
 			break;
@@ -455,7 +482,7 @@ async function handle_message(message) {
 				const result = await ffmpeg({ base64: media.data, ext, cmd_args });
 				const content = wa.MessageMedia.fromFilePath(result.output);
 				if (media.filename) content.filename = `${path.parse(media.filename).name}.${first}`;
-				await message.reply(content, undefined, {
+				await msg_reply(message, content, undefined, {
 					sendMediaAsDocument: true,
 					caption: str.MSG_FFMPEG_OK,
 				});
@@ -705,7 +732,7 @@ async function handle_message(message) {
 				const result_path = await dl_video(url);
 				if (!result_path) {
 					await timers.setTimeout(1_000);
-					await message.reply(str.MSG_DL_FAILED);
+					await msg_reply(message, str.MSG_DL_FAILED);
 					break;
 				}
 
@@ -722,7 +749,7 @@ async function handle_message(message) {
 				}
 
 				const content = wa.MessageMedia.fromFilePath(result_path);
-				await message.reply(content, undefined, {
+				await msg_reply(message, content, undefined, {
 					sendMediaAsDocument: true,
 					caption: str.MSG_FFMPEG_OK,
 				});
@@ -868,6 +895,35 @@ async function cleanup_dir(path) {
 		await fsp.rm(path, { recursive: true, force: true });
 	} catch (error) {
 		console.warn(`cleanup ${path} failed:`, error);
+	}
+}
+
+/**
+ * Safe reply: tries `message.reply()`, but if the frame was detached (e.g.
+ * after a browser disconnect during a long operation), falls back to sending
+ * a new message via `client.sendMessage()`.
+ * @param {wa.Message} msg
+ * @param {wa.MessageContent} content
+ * @param {string} [chatId]
+ * @param {wa.MessageSendOptions} [options]
+ */
+async function msg_reply(msg, content, chatId, options) {
+	try {
+		return await msg.reply(content, chatId, options);
+	} catch (/** @type any */ e) {
+		if (e?.message?.includes("detached Frame")) {
+			console.warn("msg_reply: frame detached, sending as new message");
+			try {
+				return await client.sendMessage(msg.from, content, options);
+			} catch (/** @type any */ e2) {
+				if (e2?.message?.includes("Target closed") || e2.message?.includes("detached Frame")) {
+					console.warn("msg_reply: client also unavailable, giving up");
+					return null;
+				}
+				throw e2;
+			}
+		}
+		throw e;
 	}
 }
 

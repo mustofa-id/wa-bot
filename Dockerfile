@@ -27,3 +27,6 @@ RUN pnpm i --prefer-offline --prod
 # USER pptruser
 
 CMD ["node", "app.js"]
+
+# build: docker build -t wa-bot:latest .
+# run: docker run -d --cpus="0.7" --env-file .env --name wa-bot -v $(pwd)/data:/app/data wa-bot:latest
