@@ -28,9 +28,9 @@ No tests, no lint, no typecheck — just a single entry point.
 
 ## Gotchas
 
-- **Browser disconnects during long ops** — `!dl`, `!cmp`, `!ffmpeg` take minutes. Puppeteer CDP target can close. `msg_reply()` (line 948) handles this: tries `message.reply()`, falls back to `client.sendMessage()`, then triggers `handle_disconnect()` and polls for reconnection before retrying.
+- **Browser disconnects during long ops** — `!dl`, `!cmp`, `!ffmpeg` take minutes. Puppeteer CDP target can close. `send_msg()` (line 961) handles this: tries `message.reply()`, falls back to `client.sendMessage()`, then triggers `handle_disconnect()` and polls for reconnection before retrying.
 - **Reconnection** — both WhatsApp-level (`disconnected` event) and Puppeteer-level (`browser disconnected`, `page close` listeners) feed into `handle_disconnect()`. Exponential backoff up to 30s, max 10 attempts.
-- **Never use bare `message.reply()` after a long async gap** — always use `msg_reply(message, ...)`. The old frame is gone after reconnect.
+- **Never use bare `message.reply()` after a long async gap** — always use `send_msg(message, ...)`. The old frame is gone after reconnect.
 - **`config.ready_at`** — set to `Date` on `ready`, null on disconnect. Entry guard at line 273 rejects messages during reconnection window. Not useful as a pre-send guard (frame can detach mid-op).
 - **`reconnecting` flag** — prevents concurrent reconnection attempts. Reset on `ready` and in `reconnect_loop()` finally block.
 - **Env vars**: `OWNER_NUMBERS` (comma-separated, with country code), `APP_LANG`, `CHROME_PATH`. See `.env.example`.

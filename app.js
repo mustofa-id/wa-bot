@@ -201,7 +201,7 @@ client.on("message_create", (message) => {
 	handle_message(message).catch(async (e) => {
 		console.error("handle_message error:", e);
 		await timers.setTimeout(1_000);
-		await msg_reply(message, str.MSG_HANDLE_ERR + ` \n\n_Error: ${e.message}`);
+		await send_msg(message, str.MSG_HANDLE_ERR + ` \n\n_Error: ${e.message}`);
 	});
 });
 
@@ -298,7 +298,7 @@ function run_money_tracker_reminder() {
 			)`;
 
 	for (const user of db.prepare(query).all()) {
-		client.sendMessage(user["number"] + "@c.us", str.MSG_NO_MONEY_TODAY);
+		send_msg(user["number"] + "@c.us", str.MSG_NO_MONEY_TODAY);
 	}
 }
 
@@ -334,13 +334,13 @@ async function handle_message(message) {
 
 	if (!user) {
 		await timers.setTimeout(1_000);
-		await message.reply(str.MSG_UNREGISTERED);
+		await send_msg(message, str.MSG_UNREGISTERED);
 		return;
 	}
 
 	if (user.is_active != 1) {
 		await timers.setTimeout(1_000);
-		await message.reply(str.MSG_INACTIVATED_ACCOUNT);
+		await send_msg(message, str.MSG_INACTIVATED_ACCOUNT);
 		return;
 	}
 
@@ -351,14 +351,14 @@ async function handle_message(message) {
 				.map((f) => `- \`${f[0]}\`${f[1] ? ` | \`${f[1]}\`` : ""} ${f[2]} \n`)
 				.join("");
 			const info = `🧰 ${str.APP_DESC} \n${commands} \n© 2025 • v${pkg.version}`;
-			await client.sendMessage(message.from, info);
+			await send_msg(message.from, info);
 			break;
 		}
 
 		case "!users": {
 			await timers.setTimeout(5_000);
 			if (user.is_owner != 1) {
-				await message.reply(str.MSG_ADMIN_ONLY);
+				await send_msg(message, str.MSG_ADMIN_ONLY);
 				break;
 			}
 
@@ -388,7 +388,7 @@ async function handle_message(message) {
 						)
 						.join("\n\n")
 				: str.MSG_NO_RESULT;
-			await message.reply(info);
+			await send_msg(message, info);
 			break;
 		}
 
@@ -396,7 +396,7 @@ async function handle_message(message) {
 		case "!register": {
 			if (user.is_owner != 1) {
 				await timers.setTimeout(1_000);
-				await message.reply(str.MSG_ADMIN_ONLY);
+				await send_msg(message, str.MSG_ADMIN_ONLY);
 				break;
 			}
 
@@ -405,7 +405,7 @@ async function handle_message(message) {
 			// simple international phone validation
 			if (!/^[1-9]\d{5,14}$/.test(user_num)) {
 				await timers.setTimeout(1_000);
-				await message.reply(str.MSG_INVALID_NUMBER);
+				await send_msg(message, str.MSG_INVALID_NUMBER);
 				break;
 			}
 
@@ -415,7 +415,7 @@ async function handle_message(message) {
 					.run(user_num);
 				const result_message = result.changes > 0 ? str.MSG_SUCCESS : str.MSG_TOGGLE_ACTIVE_FAILED;
 				await timers.setTimeout(3_000);
-				await message.reply(result_message);
+				await send_msg(message, result_message);
 				break;
 			}
 
@@ -430,7 +430,7 @@ async function handle_message(message) {
 				.run(user_num, name || null);
 			const result_message = result.changes > 0 ? str.MSG_SUCCESS : str.MSG_REGISTER_FAILED;
 			await timers.setTimeout(3_000);
-			await message.reply(result_message);
+			await send_msg(message, result_message);
 			break;
 		}
 
@@ -440,7 +440,7 @@ async function handle_message(message) {
 			if (!media) break;
 
 			const clear_long_notifier = set_random_interval(
-				async () => await message.reply(str.MSG_NEED_MORE_TIME),
+				async () => await send_msg(message, str.MSG_NEED_MORE_TIME),
 				90_000,
 				360_000,
 			);
@@ -449,19 +449,19 @@ async function handle_message(message) {
 			let result_message;
 
 			await timers.setTimeout(2_000);
-			await message.reply(str.MSG_WAIT);
+			await send_msg(message, str.MSG_WAIT);
 			try {
 				if (media.type == "video") {
 					const result = await convert_video(media.data);
 					const video = wa.MessageMedia.fromFilePath(result.output);
-					result_message = await client.sendMessage(message.from, video);
+					result_message = await send_msg(message.from, video);
 					cleanup_dir(result.dir);
 				}
 
 				if (media.type == "image") {
 					const result = await convert_image(media.data);
 					const image = wa.MessageMedia.fromFilePath(result.output);
-					result_message = await client.sendMessage(message.from, image, { sendMediaAsHd: true });
+					result_message = await send_msg(message.from, image, { sendMediaAsHd: true });
 					cleanup_dir(result.dir);
 				}
 			} finally {
@@ -470,9 +470,9 @@ async function handle_message(message) {
 
 			if (result_message) {
 				await timers.setTimeout(2_000);
-				await msg_reply(result_message, str.MSG_COMPRESS_OK);
+				await send_msg(result_message, str.MSG_COMPRESS_OK);
 			} else {
-				await msg_reply(message, str.MSG_UNKNOWN_PARAMS);
+				await send_msg(message, str.MSG_UNKNOWN_PARAMS);
 			}
 
 			break;
@@ -488,13 +488,13 @@ async function handle_message(message) {
 				const modes_msg = `${str.MSG_AVAILABLE_PARAMS} ${fmt_list_conj.format(modes.map((m) => `*${m}*`))}`;
 				if (!mode) {
 					const info = `✅ ${config.dynamic.ffmpeg_mode} \n\n`;
-					await message.reply(info + modes_msg);
+					await send_msg(message, info + modes_msg);
 					break;
 				}
 
 				if (!modes.includes(mode)) {
 					const info = `${str.MSG_UNKNOWN_PARAMS}. \n`;
-					await message.reply(info + modes_msg);
+					await send_msg(message, info + modes_msg);
 					break;
 				}
 
@@ -503,13 +503,13 @@ async function handle_message(message) {
 					on conflict (name) do update set value = excluded.value`,
 				).run("ffmpeg_mode", mode);
 				load_dynamic_config(); // it's cheap, reload all XD
-				await message.reply(str.MSG_SUCCESS);
+				await send_msg(message, str.MSG_SUCCESS);
 				break;
 			}
 
 			if (!first) {
 				await timers.setTimeout(2_000);
-				await message.reply(str.MSG_FFMPEG_INVALID_EXT);
+				await send_msg(message, str.MSG_FFMPEG_INVALID_EXT);
 				break;
 			}
 
@@ -517,19 +517,19 @@ async function handle_message(message) {
 			if (!media) break;
 
 			const clear_long_notifier = set_random_interval(
-				async () => await message.reply(str.MSG_NEED_MORE_TIME),
+				async () => await send_msg(message, str.MSG_NEED_MORE_TIME),
 				180_000,
 				520_000,
 			);
 
 			await timers.setTimeout(2_000);
-			await message.reply(str.MSG_WAIT);
+			await send_msg(message, str.MSG_WAIT);
 			try {
 				const ext = /** @type {`.${string}`} */ (first.startsWith(".") ? first : `.${first}`);
 				const result = await ffmpeg({ base64: media.data, ext, cmd_args });
 				const content = wa.MessageMedia.fromFilePath(result.output);
 				if (media.filename) content.filename = `${path.parse(media.filename).name}.${first}`;
-				await msg_reply(message, content, undefined, {
+				await send_msg(message, content, {
 					sendMediaAsDocument: true,
 					caption: str.MSG_FFMPEG_OK,
 				});
@@ -549,7 +549,7 @@ async function handle_message(message) {
 
 			if (/^-?\d+$/.test(first)) {
 				if (!rest[0]) {
-					await message.reply(str.MSG_MONEY_INVALID_DESC);
+					await send_msg(message, str.MSG_MONEY_INVALID_DESC);
 					break;
 				}
 
@@ -564,7 +564,7 @@ async function handle_message(message) {
 				const query = `insert into bookkeeping (user_id, amount, date, description) values (?,?,?,?)`;
 				const result = db.prepare(query).run(user.id, +first, date, description);
 				const info = result.changes > 0 ? str.MSG_SUCCESS : str.MSG_MONEY_SAVE_FAILED;
-				await message.reply(info);
+				await send_msg(message, info);
 				break;
 			}
 
@@ -577,18 +577,18 @@ async function handle_message(message) {
 						settings?.["money_daily_reminder"] == 1
 							? str.MSG_SETTING_ENABLED
 							: str.MSG_SETTING_DISABLED;
-					await message.reply(reminder_state);
+					await send_msg(message, reminder_state);
 					break;
 				}
 
 				const state = { disabled: 0, 0: 0, enabled: 1, 1: 1 }[rest[0]];
 				if (state == undefined) {
-					await message.reply(str.MSG_INVALID_SETTING_VAL);
+					await send_msg(message, str.MSG_INVALID_SETTING_VAL);
 					break;
 				}
 
 				const result = db.prepare(`update user_settings set money_daily_reminder = ?`).run(state);
-				await message.reply(result?.changes > 0 ? str.MSG_SUCCESS : str.MSG_NO_CHANGES);
+				await send_msg(message, result?.changes > 0 ? str.MSG_SUCCESS : str.MSG_NO_CHANGES);
 				break;
 			}
 
@@ -598,7 +598,7 @@ async function handle_message(message) {
 
 				if (!filter || !filter_list.some((f) => eq_ic(f, filter))) {
 					const info = `${str.MSG_UNKNOWN_PARAMS}. ${str.MSG_AVAILABLE_PARAMS} \n`;
-					await message.reply(info + fmt_list_conj.format(filter_list.map((f) => `*${f}*`)));
+					await send_msg(message, info + fmt_list_conj.format(filter_list.map((f) => `*${f}*`)));
 					break;
 				}
 
@@ -636,7 +636,7 @@ async function handle_message(message) {
 					})
 					.join(" \n\n");
 
-				await message.reply(result.trim() || str.MSG_MONEY_RECAP_EMPTY);
+				await send_msg(message, result.trim() || str.MSG_MONEY_RECAP_EMPTY);
 				break;
 			}
 
@@ -644,7 +644,7 @@ async function handle_message(message) {
 				const recap_user_ids = [user.id];
 				if (rest[0] == "with" && /\d+/.test(rest[1])) {
 					if (user.is_owner != 1) {
-						await message.reply(str.MSG_ADMIN_ONLY);
+						await send_msg(message, str.MSG_ADMIN_ONLY);
 						break;
 					}
 					recap_user_ids.push(+rest[1]);
@@ -748,11 +748,11 @@ async function handle_message(message) {
 					.map((r) => /** @type {string} */ (r.display));
 
 				const icon = user_names.length > 1 ? "🧑‍🧑‍🧒‍🧒" : "👤";
-				await message.reply(`${icon} *${fmt_list_conj.format(user_names)}* \n\n${result}`);
+				await send_msg(message, `${icon} *${fmt_list_conj.format(user_names)}* \n\n${result}`);
 				break;
 			}
 
-			await message.reply(str.MSG_UNKNOWN_PARAMS);
+			await send_msg(message, str.MSG_UNKNOWN_PARAMS);
 			break;
 		}
 
@@ -762,24 +762,24 @@ async function handle_message(message) {
 
 			if (!url || !URL.canParse(url)) {
 				await timers.setTimeout(1_000);
-				await message.reply(str.MSG_INVALID_URL);
+				await send_msg(message, str.MSG_INVALID_URL);
 				break;
 			}
 
 			const clear_long_notifier = set_random_interval(
-				async () => await message.reply(str.MSG_NEED_MORE_TIME),
+				async () => await send_msg(message, str.MSG_NEED_MORE_TIME),
 				250_000,
 				410_000,
 			);
 
 			await timers.setTimeout(2_000);
-			await message.reply(str.MSG_WAIT);
+			await send_msg(message, str.MSG_WAIT);
 
 			try {
 				const result_path = await dl_video(url);
 				if (!result_path) {
 					await timers.setTimeout(1_000);
-					await msg_reply(message, str.MSG_DL_FAILED);
+					await send_msg(message, str.MSG_DL_FAILED);
 					break;
 				}
 
@@ -790,13 +790,13 @@ async function handle_message(message) {
 						cmd_args: get_video_status_config().flat(),
 					});
 					const video = wa.MessageMedia.fromFilePath(compressed.output);
-					await client.sendMessage(message.from, video);
+					await send_msg(message.from, video);
 					cleanup_dir(compressed.dir);
 					break;
 				}
 
 				const content = wa.MessageMedia.fromFilePath(result_path);
-				await msg_reply(message, content, undefined, {
+				await send_msg(message, content, {
 					sendMediaAsDocument: true,
 					caption: str.MSG_FFMPEG_OK,
 				});
@@ -810,7 +810,7 @@ async function handle_message(message) {
 
 		default:
 			await timers.setTimeout(3_000);
-			await message.reply(str.MSG_UNKNOWN_CMD);
+			await send_msg(message, str.MSG_UNKNOWN_CMD);
 			break;
 	}
 }
@@ -829,18 +829,18 @@ async function get_attached_doc(message, filters = [], delay = 2_000) {
 			return get_attached_doc(quote, filters, 0);
 		}
 
-		await message.reply(str.MSG_DOC_NOT_ATTACHED);
+		await send_msg(message, str.MSG_DOC_NOT_ATTACHED);
 		return;
 	}
 
 	if (message.type != wa.MessageTypes.DOCUMENT) {
-		await message.reply(str.MSG_DOC_INVALID_ATTACHMENT);
+		await send_msg(message, str.MSG_DOC_INVALID_ATTACHMENT);
 		return;
 	}
 
 	const media = await message.downloadMedia();
 	if (!media) {
-		await message.reply(str.MSG_MEDIA_DOWNLOAD_FAILED);
+		await send_msg(message, str.MSG_MEDIA_DOWNLOAD_FAILED);
 		return;
 	}
 
@@ -851,7 +851,7 @@ async function get_attached_doc(message, filters = [], delay = 2_000) {
 
 	if (filters?.length && !filters.includes(type)) {
 		const allowed = filters.map((t) => `'${t}'`).join(" or ");
-		await message.reply(`${str.MSG_MEDIA_INVALID_TYPE} ${allowed}`);
+		await send_msg(message, `${str.MSG_MEDIA_INVALID_TYPE} ${allowed}`);
 		return;
 	}
 
@@ -946,32 +946,40 @@ async function cleanup_dir(path) {
 }
 
 /**
- * Safe reply: tries `message.reply()`, but if the frame was detached (e.g.
- * after a browser disconnect during a long operation), falls back to sending
- * a new message via `client.sendMessage()`.
- * @param {wa.Message} msg
+ * Unified send.
+ *
+ * If `target` is a Message, tries `message.reply()` first. On detached-frame
+ * error (browser disconnect during a long operation), falls back to
+ * `client.sendMessage()` and triggers reconnection if needed.
+ *
+ * If `target` is a string (chat ID), sends directly via `client.sendMessage()`.
+ *
+ * @param {wa.Message | string} target
  * @param {wa.MessageContent} content
- * @param {string} [chatId]
  * @param {wa.MessageSendOptions} [options]
  */
-async function msg_reply(msg, content, chatId, options) {
+async function send_msg(target, content, options) {
+	if (typeof target == "string") {
+		return await client.sendMessage(target, content, options);
+	}
+
 	try {
-		return await msg.reply(content, chatId, options);
+		return await target.reply(content, undefined, options);
 	} catch (/** @type any */ e) {
 		if (e?.message?.includes("detached Frame")) {
-			console.warn("msg_reply: frame detached, trying sendMessage");
+			console.warn("send_msg: frame detached, sending as new message");
 			try {
-				return await client.sendMessage(msg.from, content, options);
+				return await client.sendMessage(target.from, content, options);
 			} catch (/** @type any */ e2) {
 				if (e2?.message?.includes("Target closed") || e2?.message?.includes("detached Frame")) {
-					console.warn("msg_reply: client unavailable, triggering reconnection…");
+					console.warn("send_msg: client unavailable, triggering reconnection…");
 					handle_disconnect();
 					if (await wait_for_ready()) {
-						console.warn("msg_reply: reconnected, retrying sendMessage");
-						return await client.sendMessage(msg.from, content, options);
+						console.warn("send_msg: reconnected, retrying…");
+						return await client.sendMessage(target.from, content, options);
 					}
-					console.warn("msg_reply: reconnection timed out, giving up");
-					return null;
+					console.warn("send_msg: reconnection timed out, giving up");
+					return undefined;
 				}
 				throw e2;
 			}
