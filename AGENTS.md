@@ -35,6 +35,7 @@ No tests, no lint, no typecheck — just a single entry point.
 - **`reconnecting` flag** — prevents concurrent reconnection attempts. Reset on `ready` and in `reconnect_loop()` finally block.
 - **Env vars**: `OWNER_NUMBERS` (comma-separated, with country code), `APP_LANG`, `CHROME_PATH`. See `.env.example`.
 - **Commit messages**: prefix (`fix:`, `feat:`, `chore:`, etc), very short first line, explanation on following lines.
+- **Never commit or push without asking** — stage and show changes, wait for explicit approval.
 
 ## Setup
 

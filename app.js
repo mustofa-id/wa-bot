@@ -237,11 +237,13 @@ async function reconnect_loop() {
 		return;
 	}
 
-	// Kill the old browser process first to release userDataDir lock
+	// Close the old browser to release the userDataDir lock.
+	// Works even when CDP is already disconnected — Puppeteer kills the
+	// underlying process regardless.
 	try {
-		await client.destroy();
+		await client.pupBrowser?.close();
 	} catch {
-		// old browser may already be gone, that's fine
+		// browser may already be gone, that's fine
 	}
 
 	try {
