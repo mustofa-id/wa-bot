@@ -208,7 +208,10 @@ client.on("message_create", (message) => {
 client.initialize();
 
 process.on("SIGTERM", async () => {
-	await client.pupBrowser?.close();
+	config.reconnecting = true; // prevent handle_disconnect from starting reconnect
+	try {
+		await client.destroy(); // properly closes browser + auth strategy
+	} catch {}
 	process.exit(0);
 });
 
