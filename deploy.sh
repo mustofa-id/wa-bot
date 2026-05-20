@@ -6,6 +6,9 @@ if [[ ! -f .env ]]; then
 	exit 1
 fi
 
+echo "Pulling latest code…"
+git pull
+
 if docker ps -a --format '{{.Names}}' | grep -q '^wa-bot$'; then
 	echo "Stopping and removing existing container 'wa-bot'…"
 	docker stop wa-bot
