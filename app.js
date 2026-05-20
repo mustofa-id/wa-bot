@@ -951,9 +951,9 @@ async function cleanup_dir(path) {
 /**
  * Unified send.
  *
- * If `target` is a Message, tries `message.reply()` first. On detached-frame
- * error (browser disconnect during a long operation), falls back to
- * `client.sendMessage()` and triggers reconnection if needed.
+ * If `target` is a Message, sends via `client.sendMessage()` with
+ * `quotedMessageId` automatically set so the reply is quoted. Falls back
+ * to string-based send on detached-frame error.
  *
  * If `target` is a string (chat ID), sends directly via `client.sendMessage()`.
  *
@@ -968,11 +968,18 @@ async function send_msg(target, content, options, retry = 0) {
 		return;
 	}
 
+	if (typeof target === "object") {
+		const qid = target.id?._serialized;
+		if (qid && !options?.quotedMessageId) {
+			options = { ...options, quotedMessageId: qid };
+		}
+	}
+
 	try {
 		if (typeof target == "string") {
 			return await client.sendMessage(target, content, options);
 		}
-		return await target.reply(content, undefined, options);
+		return await client.sendMessage(target.from, content, options);
 	} catch (/** @type any */ e) {
 		if (typeof target === "object" && e?.message?.includes("detached Frame")) {
 			console.warn("send_msg: frame detached, sending as new message");
