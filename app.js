@@ -957,33 +957,36 @@ async function cleanup_dir(path) {
  * @param {wa.Message | string} target
  * @param {wa.MessageContent} content
  * @param {wa.MessageSendOptions} [options]
+ * @returns {Promise<wa.Message | undefined>}
  */
-async function send_msg(target, content, options) {
-	if (typeof target == "string") {
-		return await client.sendMessage(target, content, options);
+async function send_msg(target, content, options, retry = 0) {
+	if (retry >= 5) {
+		console.warn("send_msg: reach max retry, giving up");
+		return;
 	}
 
 	try {
+		if (typeof target == "string") {
+			return await client.sendMessage(target, content, options);
+		}
 		return await target.reply(content, undefined, options);
 	} catch (/** @type any */ e) {
-		if (e?.message?.includes("detached Frame")) {
+		if (typeof target === "object" && e?.message?.includes("detached Frame")) {
 			console.warn("send_msg: frame detached, sending as new message");
-			try {
-				return await client.sendMessage(target.from, content, options);
-			} catch (/** @type any */ e2) {
-				if (e2?.message?.includes("Target closed") || e2?.message?.includes("detached Frame")) {
-					console.warn("send_msg: client unavailable, triggering reconnection…");
-					handle_disconnect();
-					if (await wait_for_ready()) {
-						console.warn("send_msg: reconnected, retrying…");
-						return await client.sendMessage(target.from, content, options);
-					}
-					console.warn("send_msg: reconnection timed out, giving up");
-					return undefined;
-				}
-				throw e2;
-			}
+			return await send_msg(target.from, content, options, retry + 1);
 		}
+
+		if (e?.message?.includes("Target closed") || e?.message?.includes("detached Frame")) {
+			console.warn("send_msg: client unavailable, triggering reconnection…");
+			handle_disconnect();
+			if (await wait_for_ready()) {
+				console.warn("send_msg: reconnected, retrying…");
+				return await send_msg(target, content, options, retry + 1);
+			}
+			console.warn("send_msg: reconnection timed out, giving up");
+			return;
+		}
+
 		throw e;
 	}
 }
