@@ -251,10 +251,21 @@ async function reconnect_loop() {
 
 	try {
 		await client.initialize();
+		// `ready` event normally clears `reconnecting` and sets `ready_at`,
+		// but it might never fire (degraded state). Wait up to 60s, then
+		// clear the flag ourselves to avoid permanent deadlock.
+		if (!config.reconnecting) {
+			// ready already fired during initialize()
+			return;
+		}
+		const ready = await wait_for_ready(60_000);
+		if (!ready) {
+			console.warn("reconnect_loop: ready did not fire within 60s, clearing reconnect flag");
+			config.reconnecting = false;
+		}
 	} catch (err) {
 		console.error("Reconnection failed:", err);
-	} finally {
-		config.reconnecting = false;
+		config.reconnecting = false; // allow a future attempt
 	}
 }
 
@@ -981,13 +992,29 @@ async function send_msg(target, content, options, retry = 0) {
 		}
 		return await client.sendMessage(target.from, content, options);
 	} catch (/** @type any */ e) {
-		if (typeof target === "object" && e?.message?.includes("detached Frame")) {
+		const known_disconnect =
+			e?.message?.includes("Target closed") ||
+			e?.message?.includes("detached Frame");
+
+		// Frame detached with a Message target — send as new message once.
+		if (known_disconnect && typeof target === "object" && e.message.includes("detached Frame")) {
 			console.warn("send_msg: frame detached, sending as new message");
 			return await send_msg(target.from, content, options, retry + 1);
 		}
 
-		if (e?.message?.includes("Target closed") || e?.message?.includes("detached Frame")) {
-			console.warn("send_msg: client unavailable, triggering reconnection…");
+		// Error from inside the page evaluate (e.g. "Cannot read properties of
+		// undefined (reading 'getChat')") means the page context is gone — the
+		// client disconnected mid-evaluate. Treat it like "Target closed".
+		const page_broken = e?.message?.includes("Cannot read properties of");
+
+		if (known_disconnect || page_broken) {
+			console.warn(
+				"send_msg: client unavailable (",
+				e.constructor.name,
+				":",
+				e.message,
+				"), triggering reconnection…",
+			);
 			handle_disconnect();
 			if (await wait_for_ready()) {
 				console.warn("send_msg: reconnected, retrying…");
@@ -997,7 +1024,9 @@ async function send_msg(target, content, options, retry = 0) {
 			return;
 		}
 
-		throw e;
+		// Unknown error — log and give up. Don't crash the process.
+		console.error("send_msg: unexpected error, giving up:", e);
+		return;
 	}
 }
 
@@ -1057,7 +1086,13 @@ function set_random_interval(callback, min = 1, max = 1) {
 
 	async function run() {
 		if (!running) return;
-		if (timer_id) await callback?.();
+		if (timer_id) {
+			try {
+				await callback?.();
+			} catch (e) {
+				console.error("set_random_interval: callback failed", e);
+			}
+		}
 		const delay = Math.floor(Math.random() * (max - min + 1) + min);
 		timer_id = setTimeout(run, delay);
 	}
