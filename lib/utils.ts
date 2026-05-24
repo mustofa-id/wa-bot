@@ -242,9 +242,8 @@ export async function getDataDir(): Promise<URL> {
 		await access(dataDir, constants.F_OK);
 	} catch {
 		await mkdir(dataDir, { recursive: true, mode: 0o700 });
+		await chmod(dataDir, 0o700);
 	}
-
-	await chmod(dataDir, 0o700);
 
 	return dataDir;
 }
