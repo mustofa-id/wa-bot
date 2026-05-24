@@ -1,0 +1,12 @@
+{
+	"cSpell.customDictionaries": {
+		"project-dic": {
+			"name": "project-dic",
+			"path": "${workspaceRoot}/spelling.dic",
+			"description": "Words used in this project",
+			"addWords": true,
+			"scope": "workspace"
+		}
+	},
+	"cSpell.ignorePaths": ["pnpm-lock.yaml", "pnpm-workspace.yaml"]
+}

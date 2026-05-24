@@ -1,0 +1,285 @@
+import { ffmpeg, ffprobe, getDataDir, normalizePhone, phoneFromJid, randomInt, ytdlp } from "#lib/utils.ts";
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { constants } from "node:fs";
+import { access, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, before, beforeEach, describe, it } from "node:test";
+
+describe("getDataDir", () => {
+	const ORIGINAL_DATA_DIR = process.env.DATA_DIR;
+	const tempRoot = new URL("../tmp-test-data/", import.meta.url);
+
+	beforeEach(() => {
+		delete process.env.DATA_DIR;
+	});
+
+	afterEach(async () => {
+		process.env.DATA_DIR = ORIGINAL_DATA_DIR;
+		await rm(tempRoot, { recursive: true, force: true }).catch(() => {});
+	});
+
+	it("returns a URL", async () => {
+		const dir = await getDataDir();
+		assert.ok(dir instanceof URL);
+	});
+
+	it("defaults to /data/ relative to project root", async () => {
+		const dir = await getDataDir();
+		assert.ok(dir.pathname.endsWith("/data/"));
+	});
+
+	it("uses DATA_DIR env var when set", async () => {
+		const customDir = new URL("./custom-data/", tempRoot);
+		process.env.DATA_DIR = customDir.href;
+		const dir = await getDataDir();
+		assert.equal(dir.href, customDir.href);
+	});
+
+	it("creates directory if missing", async () => {
+		const newDir = new URL("./new-data/", tempRoot);
+		process.env.DATA_DIR = newDir.href;
+		await getDataDir();
+		await access(newDir, constants.F_OK);
+	});
+
+	it("sets directory permissions to 0o700", async () => {
+		const newDir = new URL("./perm-data/", tempRoot);
+		process.env.DATA_DIR = newDir.href;
+		await getDataDir();
+		await access(newDir, constants.R_OK | constants.W_OK | constants.X_OK);
+	});
+});
+
+describe("randomInt", () => {
+	it("returns a number", () => {
+		assert.equal(typeof randomInt(10), "number");
+	});
+
+	it("single argument: returns value in [0, from]", () => {
+		for (let i = 0; i < 100; i++) {
+			const n = randomInt(100);
+			assert.ok(n >= 0 && n <= 100, `${n} not in [0, 100]`);
+		}
+	});
+
+	it("two arguments: returns value in [from, to]", () => {
+		for (let i = 0; i < 100; i++) {
+			const n = randomInt(200, 400);
+			assert.ok(n >= 200 && n <= 400, `${n} not in [200, 400]`);
+		}
+	});
+
+	it("returns from when from === to", () => {
+		assert.equal(randomInt(7, 7), 7);
+	});
+
+	it("multipleOf: all results are multiples", () => {
+		for (let i = 0; i < 100; i++) {
+			const n = randomInt(1000, 5000, 500);
+			assert.equal(n % 500, 0, `${n} is not a multiple of 500`);
+			assert.ok(n >= 1000 && n <= 5000, `${n} not in [1000, 5000]`);
+		}
+	});
+
+	it("multipleOf: from === to", () => {
+		assert.equal(randomInt(100, 100, 50), 100);
+	});
+
+	it("multipleOf: no multiples in range returns from", () => {
+		const n = randomInt(1, 3, 10);
+		assert.equal(n, 1);
+	});
+});
+
+describe("phoneFromJid", () => {
+	it("extracts phone from JID with device suffix", () => {
+		assert.equal(phoneFromJid("6281234567890:27@s.whatsapp.net"), "6281234567890");
+	});
+
+	it("extracts phone from JID without device suffix", () => {
+		assert.equal(phoneFromJid("6281234567890@s.whatsapp.net"), "6281234567890");
+	});
+
+	it("extracts LID from lid format", () => {
+		assert.equal(phoneFromJid("65747000000000:27@lid"), "65747000000000");
+	});
+
+	it("extracts id from group JID", () => {
+		assert.equal(phoneFromJid("1234567890@g.us"), "1234567890");
+	});
+
+	it("returns empty string for empty input", () => {
+		assert.equal(phoneFromJid(""), "");
+	});
+
+	it("handles plain phone number without domain", () => {
+		assert.equal(phoneFromJid("6281234567890"), "6281234567890");
+	});
+});
+
+describe("normalizePhone", () => {
+	it("strips leading +", () => {
+		assert.equal(normalizePhone("+6281234567890"), "6281234567890");
+	});
+
+	it("strips leading 0", () => {
+		assert.equal(normalizePhone("081234567890"), "81234567890");
+	});
+
+	it("removes non-digit characters", () => {
+		assert.equal(normalizePhone("62 812-3456-7890"), "6281234567890");
+	});
+
+	it("passes through already clean number", () => {
+		assert.equal(normalizePhone("6281234567890"), "6281234567890");
+	});
+
+	it("handles + with spaces", () => {
+		assert.equal(normalizePhone("+62 812 3456 7890"), "6281234567890");
+	});
+
+	it("strips + then 0", () => {
+		assert.equal(normalizePhone("+081234567890"), "81234567890");
+	});
+
+	it("returns empty for empty input", () => {
+		assert.equal(normalizePhone(""), "");
+	});
+});
+
+function generateTestInput(outputPath: string): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const proc = spawn("ffmpeg", ["-f", "lavfi", "-i", "color=c=red:s=10x10:d=1", "-frames:v", "1", outputPath]);
+		proc.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exited with code ${code}`))));
+		proc.on("error", reject);
+	});
+}
+
+describe("ffmpeg", () => {
+	let tempDir: string;
+	let inputPath: string;
+	let available = false;
+
+	before(async () => {
+		available = await new Promise<boolean>((resolve) => {
+			const proc = spawn("ffmpeg", ["-version"]);
+			proc.on("close", (code) => resolve(code === 0));
+			proc.on("error", () => resolve(false));
+		});
+	});
+
+	beforeEach(async () => {
+		if (!available) return;
+		tempDir = await mkdtemp(join(tmpdir(), "ffmpeg-test-"));
+		inputPath = join(tempDir, "input.png");
+		await generateTestInput(inputPath);
+	});
+
+	afterEach(async () => {
+		if (tempDir) await rm(tempDir, { recursive: true, force: true });
+	});
+
+	it("runs with balance mode and returns output path", async () => {
+		if (!available) return;
+		const result = await ffmpeg(inputPath, {
+			mode: "balance",
+			args: ["-vf", "scale=5:5"],
+		});
+		assert.equal(result, join(tempDir, "input_processed.png"));
+		await access(result, constants.F_OK);
+	});
+
+	it("runs with gentel mode", async () => {
+		if (!available) return;
+		const result = await ffmpeg(inputPath, {
+			mode: "gentel",
+			args: ["-vf", "scale=5:5"],
+		});
+		await access(result, constants.F_OK);
+	});
+
+	it("runs with performance mode", async () => {
+		if (!available) return;
+		const result = await ffmpeg(inputPath, {
+			mode: "performance",
+			args: ["-vf", "scale=5:5"],
+		});
+		await access(result, constants.F_OK);
+	});
+
+	it("rejects on invalid input path", async () => {
+		if (!available) return;
+		await assert.rejects(ffmpeg("/nonexistent/file.mp4", { mode: "balance", args: [] }));
+	});
+});
+
+describe("ffprobe", () => {
+	let tempDir: string;
+	let inputPath: string;
+	let available = false;
+
+	before(async () => {
+		available = await new Promise<boolean>((resolve) => {
+			const proc = spawn("ffprobe", ["-version"]);
+			proc.on("close", (code) => resolve(code === 0));
+			proc.on("error", () => resolve(false));
+		});
+	});
+
+	beforeEach(async () => {
+		if (!available) return;
+		tempDir = await mkdtemp(join(tmpdir(), "ffprobe-test-"));
+		inputPath = join(tempDir, "input.png");
+		await generateTestInput(inputPath);
+	});
+
+	afterEach(async () => {
+		if (tempDir) await rm(tempDir, { recursive: true, force: true });
+	});
+
+	it("returns stdout output as string", async () => {
+		if (!available) return;
+		const output = await ffprobe(inputPath, {
+			args: ["-v", "error", "-show_entries", "stream=width,height", "-of", "default=noprint_wrappers=1:nokey=1"],
+		});
+		const [width, height] = output.split("\n").map(Number);
+		assert.equal(width, 10);
+		assert.equal(height, 10);
+	});
+
+	it("returns stream info for a valid file", async () => {
+		if (!available) return;
+		const output = await ffprobe(inputPath, {
+			args: ["-v", "error", "-show_entries", "format=format_name", "-of", "default=noprint_wrappers=1:nokey=1"],
+		});
+		assert.ok(output.length > 0);
+	});
+
+	it("rejects on invalid input path", async () => {
+		if (!available) return;
+		await assert.rejects(ffprobe("/nonexistent/file.png", { args: ["-v", "error"] }));
+	});
+});
+
+describe("ytdlp", () => {
+	let available = false;
+
+	before(async () => {
+		available = await new Promise<boolean>((resolve) => {
+			const proc = spawn("yt-dlp", ["--version"]);
+			proc.on("close", (code) => resolve(code === 0));
+			proc.on("error", () => resolve(false));
+		});
+	});
+
+	it("rejects on invalid URL", { timeout: 15000 }, async () => {
+		if (!available) return;
+		await assert.rejects(
+			ytdlp("https://nonexistent.example.com/video", {
+				args: ["--no-progress", "--no-warnings", "--socket-timeout", "3", "--max-filesize", "1"],
+			}),
+		);
+	});
+});

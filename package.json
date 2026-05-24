@@ -1,11 +1,19 @@
 {
 	"name": "wa-bot",
-	"version": "0.1.10",
-	"description": "WhatsApp bot for multipurpose tools",
+	"version": "0.0.0",
+	"description": "",
+	"main": "main.ts",
 	"type": "module",
-	"main": "app.js",
 	"scripts": {
-		"start": "node --env-file=.env ."
+		"dev": "node --env-file=.env --watch main.ts",
+		"test": "node --env-file=.env --test */**.spec.ts",
+		"test:watch": "node --env-file=.env --test --watch */**.spec.ts",
+		"test:file": "node --env-file=.env --test",
+		"format": "prettier --write ."
+	},
+	"imports": {
+		"#plugins/*": "./plugins/*",
+		"#lib/*": "./lib/*"
 	},
 	"keywords": [],
 	"author": {
@@ -14,12 +22,15 @@
 		"url": "https://github.com/mustofa-id"
 	},
 	"license": "MIT",
-	"packageManager": "pnpm@10.13.1",
-	"dependencies": {
-		"qrcode-terminal": "^0.12.0",
-		"whatsapp-web.js": "^1.34.7"
-	},
+	"packageManager": "pnpm@11.2.2",
 	"devDependencies": {
+		"@types/mime-types": "^3.0.1",
+		"@types/qrcode": "^1.5.6",
 		"prettier": "^3.8.3"
+	},
+	"dependencies": {
+		"baileys": "7.0.0-rc12",
+		"mime-types": "^3.0.2",
+		"qrcode": "^1.5.4"
 	}
 }

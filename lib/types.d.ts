@@ -1,0 +1,49 @@
+type MaybePromise<T> = Promise<T> | T;
+
+type DownloadAttachment = () => Promise<{
+	buffer: Buffer;
+	mimeType?: string;
+	fileName?: string;
+}>;
+
+type BotPluginResult = (
+	| {
+			type: "text";
+			text: string;
+	  }
+	| {
+			type: "document" | "image" | "video";
+			filePath: string;
+			caption?: string;
+	  }
+) & { quoted?: boolean };
+
+type BotPluginRun = (context: {
+	args: string[];
+	user: BotUser;
+	messageId: string;
+	downloadAttachment: DownloadAttachment;
+	type?: "document" | "image" | "video" | "audio" | "sticker";
+}) => MaybePromise<BotPluginResult | AsyncGenerator<BotPluginResult>>;
+
+interface BotUser {
+	id: string;
+	idAlt?: string;
+	username?: string;
+	fullName?: string | null;
+}
+
+interface BotPlugin {
+	command: `!${string}`;
+	description?: string;
+	queue?: "user" | "global";
+	run: BotPluginRun;
+}
+
+// TODO not yet implemented. Hooks before or after processing message
+interface BotHook {
+	handle: () => MaybePromise<void>;
+}
+
+// TODO not yet implemented. So we can switch between WhatsApp API/lib easily.
+interface BotAdapter {}

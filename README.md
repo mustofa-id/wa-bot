@@ -1,49 +1,53 @@
 # Personal WhatsApp Bot
 
-```bash
+Uses a plugin-based architecture — commands auto-discover from the `plugins/` directory. Runs on Node.js with native TypeScript (no build step).
 
-# install dependencies
-pnpm i
+## Features
 
-# install puppeteer browser/chrome (optional default to chromium)
-pnpm dlx puppeteer browsers install
+- **Plugin system** — drop a file in `plugins/`, export a `BotPlugin`, and `!your-command` works immediately
+- **Queues** — per-user or global serialization for long-running plugins
+- **Generator plugins** — yield intermediate progress messages
 
-```
+## Requirements
 
-Find the browser/chrome path from the output of the command above and set it in the `.env` file.
+- Node.js ≥ 22
+- pnpm 11.2.2 (managed via corepack)
+- ffmpeg + ffprobe, ghostscript, yt-dlp (optional — per-plugin)
 
-```bash
-cp .env.example .env
-```
+## How to Run
 
-Edit `.env` file:
-
-```conf
-# set here (optional default to chromium)
-CHROME_PATH=your-browser-path
-
-# bot owner numbers that starts with country calling code
-OWNER_NUMBERS=6285300001111,6289600001111
-
-# Language code default to "en". See i18n/index.js for more details.
-APP_LANG=en
-```
-
-Start the bot by simply using the `pnpm start` command, or run it as a service with `pm2`:
+### Development
 
 ```bash
+pnpm install
+pnpm dev
+```
 
-# install pm2 globally if not already exists
+### Production
+
+Run with `./deploy.sh` script (Linux/Unix only) or manually:
+
+With PM2:
+
+```bash
 pnpm add -g pm2
-
-# create service
-pm2 start app.js --name=wa-bot --node-args="--env-file=.env"
+pm2 start main.ts --interpreter node --interpreter-args "--env-file=.env" --name wa-bot
 ```
 
-On the first run, the bot will print a QR code that you can use to link your account. When using `pm2`, you can use this command to view it:
+With Podman:
 
 ```bash
-pm2 logs wa-bot --out --lines 100
+podman build -t wa-bot:latest .
+podman run -d --env-file .env --name wa-bot -v "$(pwd)/data:/app/data" wa-bot:latest
 ```
 
-> Make sure there are [`ffmpeg`](https://ffmpeg.org/download.html) and [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) cli in your system.
+With Docker:
+
+```bash
+docker build -t wa-bot:latest .
+docker run -d --env-file .env --name wa-bot -v "$(pwd)/data:/app/data" wa-bot:latest
+```
+
+## License
+
+MIT
