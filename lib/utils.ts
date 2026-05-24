@@ -121,21 +121,20 @@ export async function ytdlp(
 ): Promise<string[]> {
 	const isWin = process.platform === "win32";
 	const cmd = isWin ? "yt-dlp.exe" : "yt-dlp";
-	const allArgs = [...options.args, url];
+	const allArgs = [...options.args, "--print", "after_move:filepath", url];
 
 	return await new Promise<string[]>((resolve, reject) => {
 		const proc = spawn(cmd, allArgs);
-		let stderr = "";
-		proc.stderr?.on("data", (d) => {
-			stderr += d.toString();
+		let stdout = "";
+		proc.stdout?.on("data", (d) => {
+			stdout += d.toString();
 		});
 		proc.on("close", (code) => {
 			if (code === 0) {
-				const paths: string[] = [];
-				for (const line of stderr.split("\n")) {
-					const match = line.match(/^\[download\] Destination: (.+)$/);
-					if (match) paths.push(match[1].trim());
-				}
+				const paths = stdout
+					.split("\n")
+					.map((l) => l.trim())
+					.filter(Boolean);
 				resolve(paths);
 			} else {
 				reject(new Error(`yt-dlp exited with code ${code}`));

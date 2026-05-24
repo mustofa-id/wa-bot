@@ -25,7 +25,13 @@ export default {
 		const id = randomUUID();
 		const outputPattern = join(workDir, `${id}_%(id)s.%(ext)s`);
 
-		const ytdlpArgs: string[] = ["--no-progress", "--no-warnings", "-o", outputPattern];
+		const ytdlpArgs: string[] = [
+			"--no-progress", "--no-warnings",
+			"--no-mtime", "--no-part",
+			"--socket-timeout", "30",
+			"--retries", "3",
+			"-o", outputPattern,
+		];
 		if (!isMulti) ytdlpArgs.push("--no-playlist");
 
 		const paths = await ytdlp(url, { args: ytdlpArgs });
