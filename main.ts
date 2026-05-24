@@ -117,7 +117,7 @@ async function startBot() {
 
 			const user: BotUser = {
 				id: msg.key.remoteJid!,
-				idAlt: msg.key.remoteJidAlt!,
+				idAlt: msg.key.remoteJidAlt! || msg.key.participant!,
 				username: msg.key.remoteJidUsername,
 				fullName: msg.pushName,
 			};
@@ -151,7 +151,6 @@ async function startBot() {
 			const plugin = plugins.find((p) => p.command == cmd);
 
 			try {
-
 				if (senderPhone !== ownerPhone && !isUserEnabled(senderPhone)) {
 					throw new Error("Kamu tidak terdaftar atau tidak diizinkan menggunakan bot ini.");
 				}
