@@ -114,11 +114,14 @@ async function startBot() {
 
 		for (const msg of messages) {
 			// if (msg.key.fromMe) continue;
+			if (msg.broadcast) continue; // skip broadcast like contact Status update
+
+			const isGroup = msg.key.remoteJid?.trim()?.endsWith("@g.us") || false;
 
 			const user: BotUser = {
-				id: msg.key.remoteJid!,
-				idAlt: msg.key.remoteJidAlt! || msg.key.participant!,
-				username: msg.key.remoteJidUsername,
+				id: isGroup ? msg.key.participant! : msg.key.remoteJid!,
+				idAlt: isGroup ? msg.key.participantAlt! : msg.key.remoteJidAlt!,
+				username: isGroup ? msg.key.participantUsername : msg.key.remoteJidUsername,
 				fullName: msg.pushName,
 			};
 
