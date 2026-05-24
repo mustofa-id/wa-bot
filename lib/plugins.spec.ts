@@ -33,8 +33,6 @@ describe("getAllPlugins", () => {
 				const result = await plugin.run({
 					args: [],
 					user: { id: "test" },
-					messageId: "mock-id",
-					getAttachment: async () => ({ buffer: Buffer.from("") }),
 				});
 
 				if (!result) continue;

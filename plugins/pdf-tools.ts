@@ -8,8 +8,8 @@ export default {
 	description: "Alat PDF: compress, split [range], encrypt <pass>, 2word",
 	queue: "user",
 
-	async *run({ args, attachmentType, getAttachment }) {
-		if (attachmentType !== "document") {
+	async *run({ args, attachment }) {
+		if (attachment?.type !== "document") {
 			throw new Error("Lampirkan file PDF");
 		}
 
@@ -22,7 +22,7 @@ export default {
 			quoted: true,
 		};
 
-		const { buffer, mimeType } = await getAttachment();
+		const { buffer, mimeType } = await attachment.get();
 		if (mimeType !== "application/pdf") throw new Error("File harus berupa PDF");
 
 		const dataDir = await getDataDir();

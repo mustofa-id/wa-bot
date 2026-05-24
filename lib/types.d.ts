@@ -23,9 +23,10 @@ type BotPluginResult = (
 type BotPluginRun = (context: {
 	args: string[];
 	user: BotUser;
-	messageId: string;
-	getAttachment: GetAttachment;
-	attachmentType?: BotAttachmentType;
+	attachment?: {
+		type: BotAttachmentType;
+		get: GetAttachment;
+	};
 }) => MaybePromise<BotPluginResult | AsyncGenerator<BotPluginResult>>;
 
 interface BotUser {

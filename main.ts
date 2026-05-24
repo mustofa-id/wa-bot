@@ -165,7 +165,6 @@ async function startBot() {
 				}
 
 				const execute = async () => {
-					const messageId = msg.key.id!;
 					const msgContent = msg.message;
 					const quotedContent = msgContent?.extendedTextMessage?.contextInfo?.quotedMessage;
 
@@ -192,7 +191,10 @@ async function startBot() {
 						return { buffer, mimeType, fileName };
 					};
 
-					const result = await plugin.run({ args, user, messageId, getAttachment, attachmentType });
+					const attachment =
+						attachmentType && mediaContent ? { type: attachmentType, get: getAttachment } : undefined;
+
+					const result = await plugin.run({ args, user, attachment });
 
 					if (result && Symbol.asyncIterator in (result as any)) {
 						for await (const m of result as AsyncGenerator<BotPluginResult>) {
