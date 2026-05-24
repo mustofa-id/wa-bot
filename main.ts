@@ -171,9 +171,9 @@ async function startBot() {
 
 					const mediaContent = mediaTypeOf(msgContent) ? msgContent : quotedContent;
 					const hasOwnMedia = !!mediaTypeOf(msgContent);
-					const type = mediaContent ? mediaTypeOf(mediaContent) : undefined;
+					const attachmentType = mediaContent ? mediaTypeOf(mediaContent) : undefined;
 
-					const downloadAttachment: DownloadAttachment = async () => {
+					const getAttachment: GetAttachment = async () => {
 						if (!mediaContent) throw new Error("Tidak ada lampiran media");
 
 						const targetMsg = hasOwnMedia ? msg : { message: mediaContent };
@@ -192,7 +192,7 @@ async function startBot() {
 						return { buffer, mimeType, fileName };
 					};
 
-					const result = await plugin.run({ args, user, messageId, downloadAttachment, type });
+					const result = await plugin.run({ args, user, messageId, getAttachment, attachmentType });
 
 					if (result && Symbol.asyncIterator in (result as any)) {
 						for await (const m of result as AsyncGenerator<BotPluginResult>) {

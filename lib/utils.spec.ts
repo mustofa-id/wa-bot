@@ -1,8 +1,8 @@
-import { ffmpeg, ffprobe, getDataDir, normalizePhone, phoneFromJid, randomInt, ytdlp } from "#lib/utils.ts";
+import { cleanUp, ffmpeg, ffprobe, getDataDir, ghostScript, normalizePhone, phoneFromJid, randomInt, soffice, ytdlp } from "#lib/utils.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { constants } from "node:fs";
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, before, beforeEach, describe, it } from "node:test";
@@ -149,6 +149,26 @@ describe("normalizePhone", () => {
 	});
 });
 
+describe("cleanUp", () => {
+	it("no-op with empty paths", async () => {
+		await cleanUp();
+	});
+
+	it("filters out null and undefined", async () => {
+		await cleanUp(null, undefined);
+	});
+
+	it("deletes a real file", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "cleanup-test-"));
+		const filePath = join(tempDir, "test.txt");
+		await writeFile(filePath, "hello");
+		await access(filePath, constants.F_OK);
+		await cleanUp(filePath);
+		await assert.rejects(access(filePath, constants.F_OK));
+		await rm(tempDir, { recursive: true, force: true });
+	});
+});
+
 function generateTestInput(outputPath: string): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const proc = spawn("ffmpeg", ["-f", "lavfi", "-i", "color=c=red:s=10x10:d=1", "-frames:v", "1", outputPath]);
@@ -279,6 +299,104 @@ describe("ytdlp", () => {
 		await assert.rejects(
 			ytdlp("https://nonexistent.example.com/video", {
 				args: ["--no-progress", "--no-warnings", "--socket-timeout", "3", "--max-filesize", "1"],
+			}),
+		);
+	});
+});
+
+function generateMinimalPdf(outputPath: string): Promise<void> {
+	const pdf = Buffer.from(
+		"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R>>endobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF",
+	);
+	return writeFile(outputPath, pdf);
+}
+
+describe("ghostScript", () => {
+	let tempDir: string;
+	let inputPath: string;
+	let available = false;
+
+	before(async () => {
+		available = await new Promise<boolean>((resolve) => {
+			const proc = spawn("gs", ["--version"]);
+			proc.on("close", (code) => resolve(code === 0));
+			proc.on("error", () => resolve(false));
+		});
+	});
+
+	beforeEach(async () => {
+		if (!available) return;
+		tempDir = await mkdtemp(join(tmpdir(), "gs-test-"));
+		inputPath = join(tempDir, "input.pdf");
+		await generateMinimalPdf(inputPath);
+	});
+
+	afterEach(async () => {
+		if (tempDir) await rm(tempDir, { recursive: true, force: true });
+	});
+
+	it("processes a PDF and returns output path", { timeout: 30000 }, async () => {
+		if (!available) return;
+		const outputPath = join(tempDir, "output.pdf");
+		const result = await ghostScript(inputPath, {
+			args: ["-sDEVICE=pdfwrite", "-dPDFSETTINGS=/prepress"],
+			outputPath,
+		});
+		assert.equal(result, outputPath);
+		await access(result, constants.F_OK);
+	});
+
+	it("rejects on invalid input path", async () => {
+		if (!available) return;
+		await assert.rejects(
+			ghostScript("/nonexistent/file.pdf", {
+				args: ["-sDEVICE=pdfwrite"],
+				outputPath: "/nonexistent/out.pdf",
+			}),
+		);
+	});
+});
+
+describe("soffice", () => {
+	let tempDir: string;
+	let inputPath: string;
+	let available = false;
+
+	before(async () => {
+		available = await new Promise<boolean>((resolve) => {
+			const proc = spawn("soffice", ["--version"]);
+			proc.on("close", (code) => resolve(code === 0));
+			proc.on("error", () => resolve(false));
+		});
+	});
+
+	beforeEach(async () => {
+		if (!available) return;
+		tempDir = await mkdtemp(join(tmpdir(), "soffice-test-"));
+		inputPath = join(tempDir, "input.pdf");
+		await generateMinimalPdf(inputPath);
+	});
+
+	afterEach(async () => {
+		if (tempDir) await rm(tempDir, { recursive: true, force: true });
+	});
+
+	it("converts PDF to docx", { timeout: 30000 }, async () => {
+		if (!available) return;
+		const result = await soffice(inputPath, {
+			outDir: tempDir,
+			convertTo: "docx",
+		});
+		assert.equal(result, join(tempDir, "input.docx"));
+		await access(result, constants.F_OK);
+	});
+
+	it("rejects on invalid input path", { timeout: 30000 }, async () => {
+		if (!available) return;
+		await assert.rejects(
+			soffice("/nonexistent/file.pdf", {
+				outDir: tempDir,
+				convertTo: "docx",
 			}),
 		);
 	});

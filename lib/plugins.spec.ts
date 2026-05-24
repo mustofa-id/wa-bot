@@ -34,7 +34,7 @@ describe("getAllPlugins", () => {
 					args: [],
 					user: { id: "test" },
 					messageId: "mock-id",
-					downloadAttachment: async () => ({ buffer: Buffer.from("") }),
+					getAttachment: async () => ({ buffer: Buffer.from("") }),
 				});
 
 				if (!result) continue;

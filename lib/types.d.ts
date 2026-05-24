@@ -1,6 +1,6 @@
 type MaybePromise<T> = Promise<T> | T;
 
-type DownloadAttachment = () => Promise<{
+type GetAttachment = () => Promise<{
 	buffer: Buffer;
 	mimeType?: string;
 	fileName?: string;
@@ -24,8 +24,8 @@ type BotPluginRun = (context: {
 	args: string[];
 	user: BotUser;
 	messageId: string;
-	downloadAttachment: DownloadAttachment;
-	type?: BotAttachmentType;
+	getAttachment: GetAttachment;
+	attachmentType?: BotAttachmentType;
 }) => MaybePromise<BotPluginResult | AsyncGenerator<BotPluginResult>>;
 
 interface BotUser {

@@ -74,8 +74,8 @@ export default {
 	description: "Kompres video/foto dokumen untuk status HD",
 	queue: "global",
 
-	async *run({ type, downloadAttachment }) {
-		if (type !== "document") {
+	async *run({ attachmentType, getAttachment }) {
+		if (attachmentType !== "document") {
 			throw new Error("Lampirkan dokumen video/foto yang ingin dikompres");
 		}
 
@@ -85,7 +85,7 @@ export default {
 			quoted: true,
 		};
 
-		const { buffer, mimeType } = await downloadAttachment();
+		const { buffer, mimeType } = await getAttachment();
 		if (!mimeType) throw new Error("Tidak dapat menentukan tipe media");
 
 		const isImage = mimeType.startsWith("image/");
