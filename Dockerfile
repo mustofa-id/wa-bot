@@ -4,7 +4,7 @@ FROM node:24.16-slim AS base
 
 # ------- System Dependencies -------
 
-# Install multimedia and PDF tools
+# Layer 1 — stable system deps (rarely invalidated)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     ghostscript \
@@ -13,9 +13,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install yt-dlp (standalone binary, no Python needed)
-ADD https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux /usr/local/bin/yt-dlp
-RUN chmod a+x /usr/local/bin/yt-dlp
+# Layer 2 — yt-dlp (only invalidated on yt-dlp releases)
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && arch=$(uname -m) \
+    && case "$arch" in \
+        x86_64) yt_arch="linux" ;; \
+        aarch64|arm64) yt_arch="linux_aarch64" ;; \
+        *) echo "Unsupported arch: $arch"; exit 1 ;; \
+    esac \
+    && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_${yt_arch}" -o /usr/local/bin/yt-dlp \
+    && chmod a+x /usr/local/bin/yt-dlp \
+    && apt-get purge -y curl \
+    && apt-get autoremove -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # ------- Application -------
 

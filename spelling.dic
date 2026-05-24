@@ -1,5 +1,7 @@
 AUTOINCREMENT
+autoremove
 creds
+esac
 faststart
 ffprobe
 ghostscript
