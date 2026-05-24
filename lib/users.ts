@@ -12,6 +12,9 @@ export interface UserRow extends Record<string, SQLOutputValue> {
 const dataDir = await getDataDir();
 const db = new DatabaseSync(new URL("users.db", dataDir));
 
+db.exec("PRAGMA journal_mode=WAL;");
+db.exec("PRAGMA synchronous=NORMAL;");
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

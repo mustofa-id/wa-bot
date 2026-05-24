@@ -12,6 +12,9 @@ import { DatabaseSync } from "node:sqlite";
 const dataDir = await getDataDir();
 const db = new DatabaseSync(new URL("auth.db", dataDir));
 
+db.exec("PRAGMA journal_mode=WAL;");
+db.exec("PRAGMA synchronous=NORMAL;");
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS creds (
   id TEXT PRIMARY KEY,
@@ -30,9 +33,16 @@ const readData = <T>(data: any): T => JSON.parse(data, BufferJSON.reviver);
 
 const writeData = (data: any): string => JSON.stringify(data, BufferJSON.replacer);
 
+// cached prepared statements
+const getCredsStmt = db.prepare("SELECT data FROM creds WHERE id = ?");
+const setCredsStmt = db.prepare("INSERT OR REPLACE INTO creds(id, data) VALUES (?, ?)");
+const getKeyStmt = db.prepare("SELECT data FROM keys WHERE category = ? AND id = ?");
+const insertKeyStmt = db.prepare("INSERT OR REPLACE INTO keys(category, id, data) VALUES (?, ?, ?)");
+const deleteKeyStmt = db.prepare("DELETE FROM keys WHERE category = ? AND id = ?");
+
 export async function useSQLiteAuthState() {
 	// ---------- CREDS ----------
-	const credsRow = db.prepare("SELECT data FROM creds WHERE id = ?").get("creds");
+	const credsRow = getCredsStmt.get("creds");
 	const creds = credsRow ? readData<AuthenticationCreds>(credsRow.data) : initAuthCreds();
 
 	// ---------- KEYS ----------
@@ -40,7 +50,7 @@ export async function useSQLiteAuthState() {
 		get: async (type, ids) => {
 			const data: Record<string, any> = {};
 			for (const id of ids) {
-				const row = db.prepare(`SELECT data FROM keys WHERE category = ? AND id = ?`).get(type, id);
+				const row = getKeyStmt.get(type, id);
 				if (row?.data) {
 					let value: proto.Message.AppStateSyncKeyData = readData(row.data);
 
@@ -56,16 +66,14 @@ export async function useSQLiteAuthState() {
 		},
 
 		set: async (data) => {
-			const insert = db.prepare(`INSERT OR REPLACE INTO keys(category, id, data) VALUES (?, ?, ?)`);
-			const remove = db.prepare(`DELETE FROM keys WHERE category = ? AND id = ?`);
 			for (const category in data) {
 				const signal = data[category as keyof SignalDataSet];
 				for (const id in signal) {
 					const value = signal[id];
 					if (value) {
-						insert.run(category, id, writeData(value));
+						insertKeyStmt.run(category, id, writeData(value));
 					} else {
-						remove.run(category, id);
+						deleteKeyStmt.run(category, id);
 					}
 				}
 			}
@@ -74,8 +82,7 @@ export async function useSQLiteAuthState() {
 
 	// ---------- SAVE CREDS ----------
 	const saveCreds = async () => {
-		db.prepare(`INSERT OR REPLACE INTO creds(id, data) VALUES (?, ?)`) //
-			.run("creds", writeData(creds));
+		setCredsStmt.run("creds", writeData(creds));
 	};
 
 	return { state: { creds, keys }, saveCreds };

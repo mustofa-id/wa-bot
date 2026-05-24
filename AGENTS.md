@@ -60,4 +60,5 @@
 - Error messages are in Indonesian (no i18n yet)
 - Custom cSpell dictionary at `./spelling.dic` — wired in `.vscode/settings.json`
 - `/data` and `*.db` are gitignored
+- SQLite databases use WAL mode — `*.db-wal` and `*.db-shm` are expected artifacts (covered by `*.db` gitignore)
 - No database migrations

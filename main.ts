@@ -84,6 +84,11 @@ async function startBot() {
 				await setTimeout(5_000);
 				await startBot();
 			}
+			return;
+		}
+
+		if (connection === "open") {
+			console.log("connection: open");
 		}
 
 		if (qr) {
@@ -96,6 +101,7 @@ async function startBot() {
 	});
 
 	waSocket.ev.on("messages.upsert", async ({ messages, type }) => {
+		console.log(`messages.upsert: type=${type}, count=${messages.length}`);
 		if (type != "notify") return;
 
 		for (const msg of messages) {
