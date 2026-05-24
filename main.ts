@@ -125,6 +125,8 @@ async function startBot() {
 				fullName: msg.pushName,
 			};
 
+			const targetJid = msg.key.remoteJid!; // correct for user or group
+
 			const text =
 				msg.message?.conversation ||
 				msg.message?.extendedTextMessage?.text ||
@@ -140,7 +142,7 @@ async function startBot() {
 
 			try {
 				await waSocket.readMessages([msg.key]);
-				await waSocket.sendPresenceUpdate("composing", user.id);
+				await waSocket.sendPresenceUpdate("composing", targetJid);
 			} catch {}
 			await setTimeout(randomInt(2_000, 4_000));
 
@@ -169,7 +171,7 @@ async function startBot() {
 					(plugin.queue === "global" && globalQueue !== null)
 				) {
 					await waSocket.sendMessage(
-						user.id,
+						targetJid,
 						{ text: "Permintaan kamu sedang mengantre, mohon tunggu..." },
 						{ quoted: msg },
 					);
@@ -213,7 +215,7 @@ async function startBot() {
 							let iterResult = await iter.next();
 							while (!iterResult.done) {
 								const value = iterResult.value;
-								await waSocket.sendMessage(user.id, pluginResultToMessage(value), {
+								await waSocket.sendMessage(targetJid, pluginResultToMessage(value), {
 									quoted: value.quoted ? msg : undefined,
 								});
 
@@ -225,7 +227,7 @@ async function startBot() {
 								}
 							}
 						} else if (result) {
-							await waSocket.sendMessage(user.id, pluginResultToMessage(result as BotPluginResult), {
+							await waSocket.sendMessage(targetJid, pluginResultToMessage(result as BotPluginResult), {
 								quoted: (result as BotPluginResult).quoted ? msg : undefined,
 							});
 						}
@@ -248,12 +250,12 @@ async function startBot() {
 			} catch (error: any) {
 				console.error(`Error "${cmd}":`, error);
 				await waSocket.sendMessage(
-					user.id,
+					targetJid,
 					{ text: `😵 ${error?.message || "Unknown error"}` },
 					{ quoted: msg },
 				);
 			} finally {
-				await waSocket.sendPresenceUpdate("paused", user.id);
+				await waSocket.sendPresenceUpdate("paused", targetJid);
 			}
 		}
 	});
