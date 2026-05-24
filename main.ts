@@ -115,6 +115,8 @@ async function startBot() {
 				msg.message?.videoMessage?.caption ||
 				msg.message?.documentMessage?.caption;
 
+			console.log(`[${new Date().toLocaleString()}] 💬 ${user.idAlt} (${user.fullName || "<no name>"}): ${text}`);
+
 			if (!text) continue;
 			if (!text.trim().startsWith("!")) continue;
 
