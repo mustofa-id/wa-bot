@@ -1,4 +1,5 @@
 import { useSQLiteAuthState } from "#lib/auth.ts";
+import { ConversationManager, isPrompt } from "#lib/conversation.ts";
 import { getAllPlugins } from "#lib/plugins.ts";
 import { isUserEnabled, updateUserName } from "#lib/users.ts";
 import { phoneFromJid, randomInt } from "#lib/utils.ts";
@@ -74,6 +75,7 @@ function pluginResultToMessage(result: BotPluginResult): AnyMessageContent {
 async function startBot() {
 	const { state, saveCreds } = await useSQLiteAuthState();
 	const waSocket = createWASocket({ auth: state });
+	const conversationManager = new ConversationManager();
 
 	waSocket.ev.on("creds.update", saveCreds);
 
@@ -130,6 +132,8 @@ async function startBot() {
 			console.log(`[${new Date().toLocaleString()}] 💬 ${user.idAlt} (${user.fullName || "<no name>"}): ${text}`);
 
 			if (!text) continue;
+
+			if (conversationManager.resolve(user.id, text.trim())) continue;
 			if (!text.trim().startsWith("!")) continue;
 
 			const ownerPhone = phoneFromJid(state.creds.me?.id ?? "");
@@ -165,47 +169,61 @@ async function startBot() {
 				}
 
 				const execute = async () => {
-					const msgContent = msg.message;
-					const quotedContent = msgContent?.extendedTextMessage?.contextInfo?.quotedMessage;
+					try {
+						const msgContent = msg.message;
+						const quotedContent = msgContent?.extendedTextMessage?.contextInfo?.quotedMessage;
 
-					const mediaContent = mediaTypeOf(msgContent) ? msgContent : quotedContent;
-					const hasOwnMedia = !!mediaTypeOf(msgContent);
-					const attachmentType = mediaContent ? mediaTypeOf(mediaContent) : undefined;
+						const mediaContent = mediaTypeOf(msgContent) ? msgContent : quotedContent;
+						const hasOwnMedia = !!mediaTypeOf(msgContent);
+						const attachmentType = mediaContent ? mediaTypeOf(mediaContent) : undefined;
 
-					const getAttachment: GetAttachment = async () => {
-						if (!mediaContent) throw new Error("Tidak ada lampiran media");
+						const getAttachment: GetAttachment = async () => {
+							if (!mediaContent) throw new Error("Tidak ada lampiran media");
 
-						const targetMsg = hasOwnMedia ? msg : { message: mediaContent };
-						const buffer = (await downloadMediaMessage(
-							targetMsg as any,
-							"buffer",
-							{},
-							{
-								reuploadRequest: waSocket.updateMediaMessage,
-								logger: waSocket.logger,
-							},
-						)) as Buffer;
+							const targetMsg = hasOwnMedia ? msg : { message: mediaContent };
+							const buffer = (await downloadMediaMessage(
+								targetMsg as any,
+								"buffer",
+								{},
+								{
+									reuploadRequest: waSocket.updateMediaMessage,
+									logger: waSocket.logger,
+								},
+							)) as Buffer;
 
-						const { mimeType, fileName } = mediaMetaOf(mediaContent);
+							const { mimeType, fileName } = mediaMetaOf(mediaContent);
 
-						return { buffer, mimeType, fileName };
-					};
+							return { buffer, mimeType, fileName };
+						};
 
-					const attachment =
-						attachmentType && mediaContent ? { type: attachmentType, get: getAttachment } : undefined;
+						const attachment =
+							attachmentType && mediaContent ? { type: attachmentType, get: getAttachment } : undefined;
 
-					const result = await plugin.run({ args, user, attachment });
+						const result = await plugin.run({ args, user, attachment });
 
-					if (result && Symbol.asyncIterator in (result as any)) {
-						for await (const m of result as AsyncGenerator<BotPluginResult>) {
-							await waSocket.sendMessage(user.id, pluginResultToMessage(m), {
-								quoted: m.quoted ? msg : undefined,
+						if (result && Symbol.asyncIterator in (result as any)) {
+							const iter = result as AsyncGenerator<BotPluginResult>;
+							let iterResult = await iter.next();
+							while (!iterResult.done) {
+								const value = iterResult.value;
+								await waSocket.sendMessage(user.id, pluginResultToMessage(value), {
+									quoted: value.quoted ? msg : undefined,
+								});
+
+								if (isPrompt(value)) {
+									const reply = await conversationManager.waitForMessage(user.id);
+									iterResult = await iter.next(reply);
+								} else {
+									iterResult = await iter.next();
+								}
+							}
+						} else if (result) {
+							await waSocket.sendMessage(user.id, pluginResultToMessage(result as BotPluginResult), {
+								quoted: (result as BotPluginResult).quoted ? msg : undefined,
 							});
 						}
-					} else if (result) {
-						await waSocket.sendMessage(user.id, pluginResultToMessage(result as BotPluginResult), {
-							quoted: (result as BotPluginResult).quoted ? msg : undefined,
-						});
+					} finally {
+						conversationManager.cleanup(user.id);
 					}
 				};
 

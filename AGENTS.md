@@ -43,6 +43,7 @@
 - **Media fallback**: `downloadAttachment` checks message first, falls back to quoted message. `type` reflects whichever has media.
 - **Auto-reconnect**: On `connection.update` close, bot waits 5s and restarts unless statusCode 401 (logout).
 - **System deps (per-plugin)**: ffmpeg+ffprobe, ghostscript, yt-dlp, LibreOffice (`soffice`)
+- **Interactive plugins**: `run()` can be an async generator. Use `yield prompt({ type: "text", text: "?" })` to send a message and wait for the user's text reply — the `yield` evaluates to the reply string. `yield` without `prompt()` is fire-and-forget. Non-`!` messages from a user with a pending `prompt()` are routed to resolve it. In-memory sessions with 5 min inactivity timeout.
 
 ## Testing
 
