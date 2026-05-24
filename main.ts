@@ -211,7 +211,7 @@ async function startBot() {
 			} catch (error: any) {
 				console.error(`Error "${cmd}":`, error);
 				await waSocket.sendMessage(user.id, {
-					text: `Error: ${error?.message || "Unknown error"}`,
+					text: `😵 ${error?.message || "Unknown error"}`,
 				});
 			} finally {
 				await waSocket.sendPresenceUpdate("paused", user.id);
