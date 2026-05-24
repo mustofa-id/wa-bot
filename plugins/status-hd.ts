@@ -82,6 +82,7 @@ export default {
 		yield {
 			type: "text",
 			text: "Mohon tunggu, sedang memproses...",
+			quoted: true,
 		};
 
 		const { buffer, mimeType } = await downloadAttachment();

@@ -16,7 +16,11 @@ export default {
 		const subcommand = args[0];
 		if (!subcommand) throw new Error("Gunakan: `!pdf compress|split [range]|encrypt <pass>|2word`");
 
-		yield { type: "text", text: "Mohon tunggu, sedang memproses..." };
+		yield {
+			type: "text",
+			text: "Mohon tunggu, sedang memproses...",
+			quoted: true,
+		};
 
 		const { buffer, mimeType } = await downloadAttachment();
 		if (mimeType !== "application/pdf") throw new Error("File harus berupa PDF");

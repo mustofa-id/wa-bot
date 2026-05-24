@@ -15,7 +15,8 @@ function helpPlugin(modules: BotPlugin[]): BotPlugin {
 				return `- \`${p.command}\`${description}`;
 			});
 			return {
-				type: "text" as const,
+				type: "text",
+				quoted: true,
 				text:
 					`wa-bot v${pkg.version} ©2026\n ` +
 					`${"─".repeat(20)}\n ` +
@@ -138,8 +139,8 @@ export async function getAllPlugins() {
 		}),
 	);
 
-	modules.push(helpPlugin(modules));
 	modules.push(usersPlugin());
+	modules.push(helpPlugin(modules));
 
 	const seen = new Set<string>();
 	for (const plugin of modules) {

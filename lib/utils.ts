@@ -28,9 +28,7 @@ export async function ffmpeg(
 	const dir = dirname(inputPath);
 	const outputPath = options.outputPath ?? join(dir, `${base}_processed${ext}`);
 
-	const mode = (["gentel", "balance", "performance"] as const).includes(
-		process.env.FFMPEG_MODE as any,
-	)
+	const mode = (["gentel", "balance", "performance"] as const).includes(process.env.FFMPEG_MODE as any)
 		? (process.env.FFMPEG_MODE as "gentel" | "balance" | "performance")
 		: options.mode;
 

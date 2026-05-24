@@ -30,7 +30,7 @@ function enqueue(key: string, fn: () => Promise<void>): Promise<void> {
 	return next;
 }
 
-function mediaTypeOf(content: Record<string, any> | null | undefined): string | undefined {
+function mediaTypeOf(content: Record<string, any> | null | undefined): BotAttachmentType | undefined {
 	if (content?.documentMessage) return "document";
 	if (content?.videoMessage) return "video";
 	if (content?.imageMessage) return "image";
@@ -57,6 +57,10 @@ function pluginResultToMessage(result: BotPluginResult): AnyMessageContent {
 			return { image: { url: result.filePath }, caption: result.caption };
 		case "video":
 			return { video: { url: result.filePath }, caption: result.caption };
+		case "audio":
+			return { audio: { url: result.filePath }, caption: result.caption };
+		case "sticker":
+			return { sticker: { url: result.filePath }, caption: result.caption };
 		case "document":
 			return {
 				document: { url: result.filePath },
@@ -153,9 +157,11 @@ async function startBot() {
 					(plugin.queue === "user" && userQueues.has(user.id)) ||
 					(plugin.queue === "global" && globalQueue !== null)
 				) {
-					await waSocket.sendMessage(user.id, {
-						text: "Permintaan kamu sedang mengantre, mohon tunggu...",
-					});
+					await waSocket.sendMessage(
+						user.id,
+						{ text: "Permintaan kamu sedang mengantre, mohon tunggu..." },
+						{ quoted: msg },
+					);
 				}
 
 				const execute = async () => {
@@ -165,10 +171,7 @@ async function startBot() {
 
 					const mediaContent = mediaTypeOf(msgContent) ? msgContent : quotedContent;
 					const hasOwnMedia = !!mediaTypeOf(msgContent);
-
-					const type = mediaContent
-						? (mediaTypeOf(mediaContent) as "document" | "image" | "video" | "audio" | "sticker")
-						: undefined;
+					const type = mediaContent ? mediaTypeOf(mediaContent) : undefined;
 
 					const downloadAttachment: DownloadAttachment = async () => {
 						if (!mediaContent) throw new Error("Tidak ada lampiran media");
@@ -204,15 +207,24 @@ async function startBot() {
 					}
 				};
 
-				const q = plugin.queue;
-				if (q === "user") await enqueue(user.id, execute);
-				else if (q === "global") await enqueue("__global__", execute);
-				else await execute();
+				switch (plugin.queue) {
+					case "user":
+						await enqueue(user.id, execute);
+						break;
+					case "global":
+						await enqueue("__global__", execute);
+						break;
+					default:
+						await execute();
+						break;
+				}
 			} catch (error: any) {
 				console.error(`Error "${cmd}":`, error);
-				await waSocket.sendMessage(user.id, {
-					text: `😵 ${error?.message || "Unknown error"}`,
-				});
+				await waSocket.sendMessage(
+					user.id,
+					{ text: `😵 ${error?.message || "Unknown error"}` },
+					{ quoted: msg },
+				);
 			} finally {
 				await waSocket.sendPresenceUpdate("paused", user.id);
 			}

@@ -16,6 +16,7 @@ export default {
 		yield {
 			type: "text",
 			text: "Mohon tunggu, sedang mengunduh...",
+			quoted: true,
 		};
 
 		const dataDir = await getDataDir();
@@ -26,12 +27,14 @@ export default {
 		const outputPattern = join(workDir, `${id}_%(id)s.%(ext)s`);
 
 		const ytdlpArgs: string[] = [
-			"--no-progress", "--no-warnings",
-			"--no-mtime", "--no-part",
-			"--socket-timeout", "30",
-			"--retries", "3",
-			"-o", outputPattern,
-		];
+			"--no-progress",
+			"--no-warnings",
+			"--no-mtime",
+			"--no-part",
+			["--socket-timeout", "30"],
+			["--retries", "3"],
+			["-o", outputPattern],
+		].flat();
 		if (!isMulti) ytdlpArgs.push("--no-playlist");
 
 		const paths = await ytdlp(url, { args: ytdlpArgs });

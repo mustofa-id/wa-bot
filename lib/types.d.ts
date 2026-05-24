@@ -6,13 +6,15 @@ type DownloadAttachment = () => Promise<{
 	fileName?: string;
 }>;
 
+type BotAttachmentType = "document" | "image" | "video" | "audio" | "sticker";
+
 type BotPluginResult = (
 	| {
 			type: "text";
 			text: string;
 	  }
 	| {
-			type: "document" | "image" | "video";
+			type: BotAttachmentType;
 			filePath: string;
 			caption?: string;
 	  }
@@ -23,7 +25,7 @@ type BotPluginRun = (context: {
 	user: BotUser;
 	messageId: string;
 	downloadAttachment: DownloadAttachment;
-	type?: "document" | "image" | "video" | "audio" | "sticker";
+	type?: BotAttachmentType;
 }) => MaybePromise<BotPluginResult | AsyncGenerator<BotPluginResult>>;
 
 interface BotUser {
