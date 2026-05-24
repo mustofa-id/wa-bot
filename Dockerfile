@@ -13,8 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install yt-dlp (static binary, no Python needed)
-ADD https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp /usr/local/bin/yt-dlp
+# Install yt-dlp (standalone binary, no Python needed)
+ADD https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux /usr/local/bin/yt-dlp
 RUN chmod a+x /usr/local/bin/yt-dlp
 
 # ------- Application -------
