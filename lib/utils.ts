@@ -239,10 +239,9 @@ export async function getDataDir(): Promise<URL> {
 	const dataDir = process.env.DATA_DIR ? new URL(process.env.DATA_DIR) : new URL("../data/", import.meta.url);
 
 	try {
-		await access(dataDir, constants.F_OK);
+		await access(dataDir, constants.R_OK | constants.W_OK);
 	} catch {
 		await mkdir(dataDir, { recursive: true, mode: 0o700 });
-		await chmod(dataDir, 0o700);
 	}
 
 	return dataDir;

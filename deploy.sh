@@ -35,6 +35,10 @@ if [[ "$MODE" == "docker" ]]; then
 		ENV_FLAG=(--env-file .env)
 	fi
 
+	echo "Creating data directory with container user ownership…"
+	mkdir -p "$(pwd)/data"
+	chown 1000:1000 "$(pwd)/data" 2>/dev/null || true
+
 	echo "Starting container 'wa-bot'…"
 	docker run -d --cpus="0.7" "${ENV_FLAG[@]}" --name wa-bot -v "$(pwd)/data:/app/data" wa-bot:latest
 
