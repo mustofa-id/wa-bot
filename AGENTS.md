@@ -4,7 +4,7 @@
 
 - **Node ≥22** required — uses `node:sqlite`, `node:test`, `fs.glob`, `Array.fromAsync`, `--watch`, `--env-file`
 - **pnpm@11.2.2** — `pnpm-workspace.yaml` allows native builds for `baileys`, `protobufjs`, `sharp`
-- **TypeScript** executed natively (no build step) — `tsconfig.json` has `allowImportingTsExtensions`, `emitDeclarationOnly`
+- **TypeScript** executed natively (no build step) — `tsconfig.json` has `allowImportingTsExtensions`, `emitDeclarationOnly`, `checkJs: true`
 - **Only Prettier** for formatting — tabs, 4-space tab width, semicolons, 120 print width. Run `pnpm format`.
 - **No ESLint, no CI/CD**
 
@@ -41,6 +41,7 @@
 - **Auth**: SQLite-backed (`data/auth.db`) via `lib/auth.ts` using `node:sqlite`. Owner resolved at runtime via `phoneFromJid(state.creds.me?.id)`.
 - **Users**: SQLite-backed (`data/users.db`) via `lib/users.ts`. Owner-only commands (`!users add|ls|rm|on|off`).
 - **Media fallback**: `downloadAttachment` checks message first, falls back to quoted message. `type` reflects whichever has media.
+- **Auto-reconnect**: On `connection.update` close, bot waits 5s and restarts unless statusCode 401 (logout).
 - **System deps (per-plugin)**: ffmpeg+ffprobe, ghostscript, yt-dlp, LibreOffice (`soffice`)
 
 ## Testing
@@ -64,3 +65,5 @@
 - `/data` and `*.db` are gitignored
 - SQLite databases use WAL mode — `*.db-wal` and `*.db-shm` are expected artifacts (covered by `*.db` gitignore)
 - No database migrations
+- **Owner bypasses user check**: owner is always permitted even if not in users table (`main.ts:146`)
+- **Docker**: CMD runs `node main.ts` without `--env-file` — pass env at `docker run --env-file .env`
