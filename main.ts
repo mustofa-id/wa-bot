@@ -133,19 +133,24 @@ async function startBot() {
 
 			if (!text) continue;
 
-			if (conversationManager.resolve(user.id, text.trim())) continue;
-			if (!text.trim().startsWith("!")) continue;
-
-			const ownerPhone = phoneFromJid(state.creds.me?.id ?? "");
-			const senderPhone = phoneFromJid(user.idAlt ?? user.id);
-
-			const [cmd, ...args] = text.trim().split(/\s+/);
-			const plugin = plugins.find((p) => p.command == cmd);
+			const trimmed = text.trim();
 
 			try {
 				await waSocket.readMessages([msg.key]);
 				await waSocket.sendPresenceUpdate("composing", user.id);
-				await setTimeout(randomInt(2_000, 4_000));
+			} catch {}
+			await setTimeout(randomInt(2_000, 4_000));
+
+			if (conversationManager.resolve(user.id, trimmed)) continue;
+			if (!trimmed.startsWith("!")) continue;
+
+			const ownerPhone = phoneFromJid(state.creds.me?.id ?? "");
+			const senderPhone = phoneFromJid(user.idAlt ?? user.id);
+
+			const [cmd, ...args] = trimmed.split(/\s+/);
+			const plugin = plugins.find((p) => p.command == cmd);
+
+			try {
 
 				if (senderPhone !== ownerPhone && !isUserEnabled(senderPhone)) {
 					throw new Error("Kamu tidak terdaftar atau tidak diizinkan menggunakan bot ini.");
