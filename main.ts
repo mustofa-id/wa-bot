@@ -20,12 +20,12 @@ function enqueue(key: string, fn: () => Promise<void>): Promise<void> {
 		globalQueue = next;
 		next.finally(() => {
 			if (globalQueue === next) globalQueue = null;
-		});
+		}).catch(() => {});
 	} else {
 		userQueues.set(key, next);
 		next.finally(() => {
 			if (userQueues.get(key) === next) userQueues.delete(key);
-		});
+		}).catch(() => {});
 	}
 	return next;
 }
