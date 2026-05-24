@@ -6,8 +6,6 @@ FROM node:24.16-slim AS base
 
 # Layer 1 — stable system deps (rarely invalidated)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    curl \
     ffmpeg \
     ghostscript \
     libreoffice-core \
@@ -15,9 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Layer 2 — yt-dlp standalone binary (only invalidated on releases)
-RUN curl -fsSL --retry 3 "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux" -o /usr/local/bin/yt-dlp \
-    && chmod a+x /usr/local/bin/yt-dlp
+# Layer 2 — yt-dlp standalone binary (cache keyed on HTTP ETag; auto-updates)
+ADD https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux /tmp/yt-dlp
+RUN mv /tmp/yt-dlp /usr/local/bin/yt-dlp && chmod a+x /usr/local/bin/yt-dlp && yt-dlp --version
 
 # ------- Application -------
 
