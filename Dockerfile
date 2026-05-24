@@ -6,6 +6,8 @@ FROM node:24.16-slim AS base
 
 # Layer 1 — stable system deps (rarely invalidated)
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
     ffmpeg \
     ghostscript \
     libreoffice-core \
@@ -13,20 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Layer 2 — yt-dlp (only invalidated on yt-dlp releases)
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
-    && arch=$(uname -m) \
-    && case "$arch" in \
-        x86_64) yt_arch="linux" ;; \
-        aarch64|arm64) yt_arch="linux_aarch64" ;; \
-        *) echo "Unsupported arch: $arch"; exit 1 ;; \
-    esac \
-    && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_${yt_arch}" -o /usr/local/bin/yt-dlp \
-    && chmod a+x /usr/local/bin/yt-dlp \
-    && apt-get purge -y curl \
-    && apt-get autoremove -y \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Layer 2 — yt-dlp standalone binary (only invalidated on releases)
+RUN curl -fsSL --retry 3 "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux" -o /usr/local/bin/yt-dlp \
+    && chmod a+x /usr/local/bin/yt-dlp
 
 # ------- Application -------
 
