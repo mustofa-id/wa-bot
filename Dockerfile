@@ -10,12 +10,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ghostscript \
     libreoffice-core \
     libreoffice-writer \
+    python3 \
+    python3-pip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Layer 2 — yt-dlp standalone binary (cache keyed on HTTP ETag; auto-updates)
-ADD https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux /tmp/yt-dlp
-RUN mv /tmp/yt-dlp /usr/local/bin/yt-dlp && chmod a+x /usr/local/bin/yt-dlp && yt-dlp --version
+# Layer 2 — yt-dlp via pip (auto-updates on PyPI releases)
+RUN pip3 install --break-system-packages --no-cache-dir yt-dlp && yt-dlp --version
 
 # ------- Application -------
 
