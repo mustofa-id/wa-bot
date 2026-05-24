@@ -4,6 +4,7 @@ import { isUserEnabled, updateUserName } from "#lib/users.ts";
 import { phoneFromJid, randomInt } from "#lib/utils.ts";
 import createWASocket, { downloadMediaMessage, type AnyMessageContent } from "baileys";
 import mime from "mime-types";
+import { basename } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import qrcode from "qrcode";
 
@@ -61,6 +62,7 @@ function pluginResultToMessage(result: BotPluginResult): AnyMessageContent {
 				document: { url: result.filePath },
 				mimetype: mime.lookup(result.filePath) || "application/octet-stream",
 				caption: result.caption,
+				fileName: basename(result.filePath),
 			};
 	}
 }
