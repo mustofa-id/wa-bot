@@ -60,7 +60,8 @@ async function splitVideo(
 
 		await ffmpeg(inputPath, {
 			mode: "balance",
-			args: ["-ss", String(start), "-t", String(segDuration), "-c", "copy"],
+			preInputArgs: ["-ss", String(start)],
+			args: ["-t", String(segDuration), "-c", "copy"],
 			outputPath: segments[i],
 		});
 	}

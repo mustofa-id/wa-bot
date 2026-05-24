@@ -20,7 +20,9 @@
 
 ## Environment
 
-- `.env` gitignored — copy from `.env.example`. Only variable: `DATA_DIR` (defaults to `<project>/data/`)
+- `.env` gitignored — copy from `.env.example`. Variables:
+  - `DATA_DIR` — data directory (defaults to `<project>/data/`)
+  - `FFMPEG_MODE` — ffmpeg CPU mode: `gentel` | `balance` (default) | `performance`
 - Tests also require `.env` (commands hardcode `--env-file=.env`)
 
 ## Git
