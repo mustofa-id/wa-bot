@@ -20,4 +20,6 @@ PDFSETTINGS
 pdfwrite
 qrcode
 soffice
+ultrafast
+veryfast
 ytdlp

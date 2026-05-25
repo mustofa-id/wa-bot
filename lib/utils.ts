@@ -28,7 +28,7 @@ const ffmpegModeConfigs = {
 		bufsize: "8M",
 		maxMuxingQueueSize: "4096",
 		realtime: false,
-		nice: -10,
+		nice: null,
 	},
 } as const;
 
@@ -88,6 +88,8 @@ export async function ffmpeg(
 		spawnCmd = cmd;
 		spawnArgs = ffmpegArgs;
 	}
+
+	console.log(`running ffmpeg in "${mode}":`, spawnCmd, spawnArgs);
 
 	await new Promise<void>((resolve, reject) => {
 		const proc = spawn(spawnCmd, spawnArgs, { stdio: "inherit" });
