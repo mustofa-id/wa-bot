@@ -59,8 +59,11 @@ export function isUserEnabled(phone: string): boolean {
 	return row ? row.enabled === 1 : false;
 }
 
-export function updateUserName(phone: string, name: string) {
+export function tryUpdateUserName(phone: string, name?: string | null) {
+	if (name == null) return;
 	try {
 		updateNameStmt.run(name, phone);
-	} catch {}
+	} catch {
+		/* optional — ignore failures */
+	}
 }

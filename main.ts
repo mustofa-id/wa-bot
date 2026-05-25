@@ -1,7 +1,7 @@
 import { useSQLiteAuthState } from "#lib/auth.ts";
 import { ConversationManager, isPrompt } from "#lib/conversation.ts";
 import { getAllPlugins } from "#lib/plugins.ts";
-import { isUserEnabled, updateUserName } from "#lib/users.ts";
+import { isUserEnabled, tryUpdateUserName } from "#lib/users.ts";
 import { phoneFromJid, randomInt } from "#lib/utils.ts";
 import createWASocket, { downloadMediaMessage, type AnyMessageContent } from "baileys";
 import mime from "mime-types";
@@ -157,10 +157,10 @@ async function startBot() {
 
 			try {
 				if (senderPhone !== ownerPhone && !isUserEnabled(senderPhone)) {
-					throw new Error("Kamu tidak terdaftar atau tidak diizinkan menggunakan bot ini.");
+					throw new Error("Kamu tidak terdaftar atau tidak diizinkan menggunakan aplikasi ini.");
 				}
 
-				if (user.fullName) updateUserName(senderPhone, user.fullName);
+				tryUpdateUserName(senderPhone, user.fullName);
 
 				if (!plugin) {
 					throw new Error(`Perintah \`${cmd}\` tidak dikenali`);

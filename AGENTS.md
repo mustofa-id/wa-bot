@@ -66,5 +66,6 @@
 - `/data` and `*.db` are gitignored
 - SQLite databases use WAL mode — `*.db-wal` and `*.db-shm` are expected artifacts (covered by `*.db` gitignore)
 - No database migrations
-- **Owner bypasses user check**: owner is always permitted even if not in users table (`main.ts:146`)
+- **Owner bypasses user check**: owner is always permitted even if not in users table
+- **No "bot" in responses**: Avoid "bot" in user-facing messages. Use "aplikasi", "layanan", or rephrase. Exception: `!help` header shows the project name.
 - **Docker**: CMD runs `node main.ts` without `--env-file` — pass env at `docker run --env-file .env`

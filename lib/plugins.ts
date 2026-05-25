@@ -18,10 +18,11 @@ function helpPlugin(modules: BotPlugin[]): BotPlugin {
 				type: "text",
 				quoted: true,
 				text:
-					`wa-bot v${pkg.version} ©2026\n ` +
-					`${"─".repeat(20)}\n ` +
-					`*Daftar Perintah:* ` +
-					`\n${lines.join("\n")}`,
+					`WA-Bot v${pkg.version} ©2026\n ` +
+					`Source: https://github.com/mustofa-id/wa-bot\n ` +
+					`${"─".repeat(16)}\n ` +
+					`*Daftar Perintah:*\n ` +
+					`${lines.join("\n\n")}`,
 			};
 		},
 	};
@@ -30,7 +31,7 @@ function helpPlugin(modules: BotPlugin[]): BotPlugin {
 function usersPlugin(): BotPlugin {
 	return {
 		command: "!users",
-		description: "Mengelola pengguna bot. Sub-perintah: add, ls, rm, on, off",
+		description: "Mengelola pengguna. Sub-perintah: add, ls, rm, on, off",
 		async run({ args, user }) {
 			const { state } = await useSQLiteAuthState();
 			const ownerPhone = phoneFromJid(state.creds.me?.id ?? "");
@@ -39,7 +40,7 @@ function usersPlugin(): BotPlugin {
 			let message: string;
 
 			if (senderPhone !== ownerPhone) {
-				message = "Hanya pemilik bot yang dapat menggunakan perintah ini";
+				message = "Hanya pemilik yang dapat menggunakan perintah ini";
 			} else {
 				const [sub, ...rest] = args;
 				switch (sub) {
