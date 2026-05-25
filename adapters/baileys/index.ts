@@ -88,7 +88,7 @@ export default class BaileysAdapter implements BotAdapter {
 					message: mediaContent,
 				} as any);
 
-		const download = async (msg: WAMessage) =>
+		const download = (msg: WAMessage) =>
 			downloadMediaMessage(
 				msg,
 				"buffer",
@@ -96,11 +96,7 @@ export default class BaileysAdapter implements BotAdapter {
 				{ reuploadRequest: this.ws!.updateMediaMessage, logger: this.ws!.logger },
 			);
 
-		const buffer = await download(targetMsg).catch(async (err: any) => {
-			if (hasOwnMedia || err?.output?.statusCode !== 400) throw err;
-			const updated = await this.ws!.updateMediaMessage(targetMsg);
-			return download(updated);
-		});
+		const buffer = await download(targetMsg);
 
 		const normalized = normalizeMessageContent(mediaContent);
 		let mimeType: string | undefined;
