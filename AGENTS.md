@@ -3,10 +3,9 @@
 ## Runtime & Toolchain
 
 - **Node ≥22** required — uses `node:sqlite`, `node:test`, `fs.glob`, `Array.fromAsync`, `--watch`, `--env-file`
-- **pnpm@11.2.2** — `pnpm-workspace.yaml` allows native builds for `baileys`, `protobufjs`, `sharp`
+- **pnpm@11.2.2** (via corepack) — `pnpm-workspace.yaml` allows native builds for `baileys`, `protobufjs`, `sharp`
 - **TypeScript** executed natively (no build step) — `tsconfig.json` has `allowImportingTsExtensions`, `emitDeclarationOnly`, `checkJs: true`
-- **Only Prettier** for formatting — tabs, 4-space tab width, semicolons, 120 print width. Run `pnpm format`.
-- **No ESLint, no CI/CD**
+- **Prettier** only — tabs, 4-space tab width, semicolons, 120 print width. Run `pnpm format`.
 
 ## Commands
 
@@ -37,13 +36,13 @@
 - **Built-in plugins**: `!help` and `!users` defined as factory functions in `lib/plugins.ts` (not in `plugins/` dir)
 - **Plugin shape** (`lib/types.d.ts`): `command` (template literal `!${string}`), `description?`, `queue?` (`"user"`/`"global"`), `run(ctx)`. Plugins use `satisfies BotPlugin` for type safety.
 - **Generator plugins**: `run` returns `AsyncGenerator<BotPluginResult>` — yields "Mohon tunggu…" then processed result. Errors after yields still deliver sent messages.
-- **Queues**: `queue: "user"` serializes per-user; `queue: "global"` serializes all; in-memory `Map`. Users notified while queued.
-- **Auth**: SQLite-backed (`data/auth.db`) via `lib/auth.ts` using `node:sqlite`. Owner resolved at runtime via `phoneFromJid(state.creds.me?.id)`.
-- **Users**: SQLite-backed (`data/users.db`) via `lib/users.ts`. Owner-only commands (`!users add|ls|rm|on|off`).
-- **Media fallback**: `downloadAttachment` checks message first, falls back to quoted message. `type` reflects whichever has media.
-- **Auto-reconnect**: On `connection.update` close, bot waits 5s and restarts unless statusCode 401 (logout).
-- **System deps (per-plugin)**: ffmpeg+ffprobe, ghostscript, yt-dlp, LibreOffice (`soffice`)
-- **Interactive plugins**: `run()` can be an async generator. Use `yield prompt({ type: "text", text: "?" })` to send a message and wait for the user's text reply — the `yield` evaluates to the reply string. `yield` without `prompt()` is fire-and-forget. Non-`!` messages from a user with a pending `prompt()` are routed to resolve it. In-memory sessions with 5 min inactivity timeout.
+- **Interactive plugins**: `yield prompt({ type: "text", text: "?" })` waits for user text reply — evaluates to the reply string. Non-`!` messages from a user with a pending `prompt()` route to resolve it. In-memory sessions with 5 min inactivity timeout.
+- **Queues**: `queue: "user"` serializes per-user; `queue: "global"` serializes all. Users notified while queued.
+- **Auth**: SQLite-backed (`data/auth.db`) via `lib/auth.ts` using `node:sqlite`. Owner resolved from `state.creds.me?.id`.
+- **Users**: SQLite-backed (`data/users.db`) via `lib/users.ts`. Owner-only commands (`!users add|ls|rm|on|off`). Owner bypasses user check (always permitted even if not in users table).
+- **Media attachment**: `attachment.get()` downloads to Buffer. Falls back to quoted message if the command message has no media. `type` reflects whichever source has media.
+- **Auto-reconnect**: On connection close, bot waits 5s and restarts unless statusCode 401 (logout).
+- **System deps (per-plugin)**: ffmpeg+ffprobe, ghostscript, yt-dlp, LibreOffice (`soffice`). Wrappers in `lib/utils.ts`.
 
 ## Testing
 
@@ -63,9 +62,7 @@
 - `BotHook` and `BotAdapter` in `lib/types.d.ts` are **unimplemented TODOs**
 - Error messages are in Indonesian (no i18n yet)
 - Custom cSpell dictionary at `./spelling.dic` — wired in `.vscode/settings.json`
-- `/data` and `*.db` are gitignored
-- SQLite databases use WAL mode — `*.db-wal` and `*.db-shm` are expected artifacts (covered by `*.db` gitignore)
+- `/data` and `*.db` are gitignored; SQLite WAL artifacts (`*.db-wal`, `*.db-shm`) covered by `/data` gitignore rule
 - No database migrations
-- **Owner bypasses user check**: owner is always permitted even if not in users table
 - **No "bot" in responses**: Avoid "bot" in user-facing messages. Use "aplikasi", "layanan", or rephrase. Exception: `!help` header shows the project name.
 - **Docker**: CMD runs `node main.ts` without `--env-file` — pass env at `docker run --env-file .env`
