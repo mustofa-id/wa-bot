@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 export default {
 	command: "!dl",
-	description: "Download media dari URL (Instagram, YouTube, dll). Gunakan `!dl <url> multi` untuk galeri/playlist",
+	description: "Download media dari URL (Instagram, YouTube, dll). Gunakan `!dl <url> [multi]` untuk galeri/playlist",
 
 	async *run({ args }) {
 		const url = args[0];

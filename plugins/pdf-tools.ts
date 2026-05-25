@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 export default {
 	command: "!pdf",
-	description: "Alat PDF: compress, split [range], encrypt <pass>, 2word",
+	description: "Alat PDF: `compress`, `split [range]`, `encrypt <pass>`, `docx`",
 	queue: "user",
 
 	async *run({ args, attachment }) {
@@ -14,7 +14,7 @@ export default {
 		}
 
 		const subcommand = args[0];
-		if (!subcommand) throw new Error("Gunakan: `!pdf compress|split [range]|encrypt <pass>|2word`");
+		if (!subcommand) throw new Error("Gunakan: `!pdf compress|split [range]|encrypt <pass>|docx`");
 
 		yield {
 			type: "text",
@@ -36,7 +36,7 @@ export default {
 		const cleanupPaths: string[] = [inputPath];
 
 		try {
-			switch (subcommand) {
+			switch (subcommand.toLowerCase()) {
 				case "compress": {
 					const outputPath = join(workDir, `${id}_compressed.pdf`);
 					cleanupPaths.push(outputPath);
@@ -110,7 +110,7 @@ export default {
 					break;
 				}
 
-				case "2word": {
+				case "docx": {
 					const outputPath = await soffice(inputPath, {
 						outDir: workDir,
 						convertTo: "docx",

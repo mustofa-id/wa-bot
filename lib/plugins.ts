@@ -31,7 +31,7 @@ function helpPlugin(modules: BotPlugin[]): BotPlugin {
 function usersPlugin(): BotPlugin {
 	return {
 		command: "!users",
-		description: "Mengelola pengguna. Sub-perintah: add, ls, rm, on, off",
+		description: "Mengelola pengguna. Sub-perintah: `add`, `ls`, `rm`, `on`, `off`",
 		async run({ args, user }) {
 			const { state } = await useSQLiteAuthState();
 			const ownerPhone = phoneFromJid(state.creds.me?.id ?? "");
