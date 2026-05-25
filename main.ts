@@ -112,6 +112,8 @@ async function startBot() {
 			fullName: msg.pushName,
 		};
 
+		console.log(`[${new Date().toLocaleString()}] 💬 ${user.pnJid} (${user.fullName || "<no name>"}): ${text}`);
+
 		try {
 			await adapter.readMessages(msg);
 			await adapter.sendPresenceUpdate(targetJid, "composing");
@@ -178,7 +180,7 @@ async function startBot() {
 					break;
 			}
 		} catch (error: unknown) {
-			console.error(`Error "${cmd}":`, error);
+			console.error(`Error "${cmd} ${args}":`, error);
 			await adapter.sendMessage(
 				targetJid,
 				{ type: "text", text: `😵 ${error instanceof Error ? error.message : "Unknown error"}` },

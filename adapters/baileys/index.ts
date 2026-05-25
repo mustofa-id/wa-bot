@@ -77,16 +77,30 @@ export default class BaileysAdapter implements BotAdapter {
 
 		if (!mediaContent) throw new Error("Tidak ada lampiran media");
 
-		const targetMsg = hasOwnMedia ? raw : ({ message: mediaContent } as WAMessage);
-		const buffer = await downloadMediaMessage(
-			targetMsg,
-			"buffer",
-			{},
-			{
-				reuploadRequest: this.ws!.updateMediaMessage,
-				logger: this.ws!.logger,
-			},
-		);
+		const targetMsg: WAMessage = hasOwnMedia
+			? raw
+			: ({
+					key: {
+						remoteJid: raw.key.remoteJid,
+						id: msgContent?.extendedTextMessage?.contextInfo?.stanzaId,
+						participant: msgContent?.extendedTextMessage?.contextInfo?.participant,
+					} as any,
+					message: mediaContent,
+				} as any);
+
+		const download = async (msg: WAMessage) =>
+			downloadMediaMessage(
+				msg,
+				"buffer",
+				{},
+				{ reuploadRequest: this.ws!.updateMediaMessage, logger: this.ws!.logger },
+			);
+
+		const buffer = await download(targetMsg).catch(async (err: any) => {
+			if (hasOwnMedia || err?.output?.statusCode !== 400) throw err;
+			const updated = await this.ws!.updateMediaMessage(targetMsg);
+			return download(updated);
+		});
 
 		const normalized = normalizeMessageContent(mediaContent);
 		let mimeType: string | undefined;
