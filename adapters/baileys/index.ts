@@ -174,7 +174,8 @@ export default class BaileysAdapter implements BotAdapter {
 		return {
 			id: raw.key.id!,
 			from: isGroup ? raw.key.participant! : raw.key.remoteJid!,
-			chat: raw.key.remoteJid!,
+			fromPnJid: isGroup ? raw.key.participantAlt! : raw.key.remoteJidAlt!,
+			chatId: raw.key.remoteJid!,
 			isGroup,
 			text,
 			pushName: raw.pushName,

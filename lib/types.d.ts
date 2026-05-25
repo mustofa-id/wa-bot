@@ -30,8 +30,10 @@ type BotPluginRun = (context: {
 }) => MaybePromise<BotPluginResult | AsyncGenerator<BotPluginResult>>;
 
 interface BotUser {
+	/** LID JID = lid-based identity */
 	id: string;
-	idAlt?: string;
+	/** PN JID = phone-number JID */
+	pnJid: string;
 	username?: string;
 	fullName?: string | null;
 }
@@ -51,9 +53,11 @@ interface BotHook {
 interface AdapterMessage {
 	id: string;
 	from: string;
-	chat: string;
+	fromPnJid: string;
+	chatId: string;
 	isGroup: boolean;
 	text?: string | null;
+	username?: string;
 	pushName?: string | null;
 	timestamp: number;
 	hasMedia: boolean;

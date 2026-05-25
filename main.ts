@@ -104,12 +104,13 @@ async function startBot() {
 		const text = msg.text?.trim();
 		if (!text) return;
 
+		const targetJid = msg.chatId;
 		const user: BotUser = {
 			id: msg.from,
-			idAlt: msg.from,
+			pnJid: msg.fromPnJid,
+			username: msg.username,
 			fullName: msg.pushName,
 		};
-		const targetJid = msg.chat;
 
 		try {
 			await adapter.readMessages(msg);
@@ -121,7 +122,7 @@ async function startBot() {
 		if (conversationManager.resolve(user.id, text)) return;
 		if (!text.startsWith("!")) return;
 
-		const senderPhone = phoneFromJid(user.idAlt ?? user.id);
+		const senderPhone = phoneFromJid(user.pnJid);
 
 		if (senderPhone !== ownerPhone && !isUserEnabled(senderPhone)) {
 			await adapter.sendMessage(
