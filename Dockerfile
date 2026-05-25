@@ -33,6 +33,7 @@ RUN pnpm install --frozen-lockfile --prod
 
 # Copy source files needed to run
 COPY main.ts ./
+COPY adapters/ ./adapters/
 COPY plugins/ ./plugins/
 COPY lib/ ./lib/
 
