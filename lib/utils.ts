@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { constants } from "node:fs";
-import { access, chmod, mkdir, rm } from "node:fs/promises";
+import { access, chmod, mkdir, rename, rm } from "node:fs/promises";
 import { cpus } from "node:os";
 import { basename, dirname, extname, join } from "node:path";
 import { setTimeout } from "node:timers/promises";
@@ -231,7 +231,28 @@ export async function soffice(
 
 	const ext = extname(inputPath);
 	const base = basename(inputPath, ext);
-	return join(options.outDir, `${base}.${options.convertTo}`);
+	const outputPath = join(options.outDir, `${base}.${options.convertTo}`);
+
+	try {
+		await access(outputPath, constants.F_OK);
+	} catch {
+		const cwdPath = join(process.cwd(), `${base}.${options.convertTo}`);
+		try {
+			await access(cwdPath, constants.F_OK);
+		} catch {
+			throw new Error(
+				`soffice finished but output file not found (looked at: ${outputPath} and ${cwdPath})`,
+			);
+		}
+		await rename(cwdPath, outputPath);
+	}
+
+	try {
+		await chmod(outputPath, 0o644);
+	} catch {
+		/* best-effort — some filesystems don't support chmod */
+	}
+	return outputPath;
 }
 
 /**
