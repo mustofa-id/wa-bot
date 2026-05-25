@@ -1,4 +1,4 @@
-import { useSQLiteAuthState } from "#lib/auth.ts";
+import { useSQLiteAuthState } from "#adapters/baileys/auth.ts";
 import { addUser, disableUser, enableUser, listUsers, removeUser } from "#lib/users.ts";
 import { normalizePhone, phoneFromJid } from "#lib/utils.ts";
 import { glob } from "node:fs/promises";

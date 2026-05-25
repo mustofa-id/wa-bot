@@ -1,5 +1,5 @@
-import { getDataDir } from "#lib/utils.ts";
-import { DatabaseSync, type SQLOutputValue } from "node:sqlite";
+import { useSqlite } from "#lib/utils.ts";
+import type { SQLOutputValue } from "node:sqlite";
 
 export interface UserRow extends Record<string, SQLOutputValue> {
 	id: number;
@@ -9,11 +9,7 @@ export interface UserRow extends Record<string, SQLOutputValue> {
 	name: string | null;
 }
 
-const dataDir = await getDataDir();
-const db = new DatabaseSync(new URL("users.db", dataDir));
-
-db.exec("PRAGMA journal_mode=WAL;");
-db.exec("PRAGMA synchronous=NORMAL;");
+const db = await useSqlite("users");
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (

@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import { access, chmod, mkdir, rename, rm } from "node:fs/promises";
 import { cpus } from "node:os";
 import { basename, dirname, extname, join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { setTimeout } from "node:timers/promises";
 
 /**
@@ -272,6 +273,16 @@ export async function getDataDir(): Promise<URL> {
 	}
 
 	return dataDir;
+}
+
+export async function useSqlite(name: string, wal = true): Promise<DatabaseSync> {
+	const dataDir = await getDataDir();
+	const db = new DatabaseSync(new URL(`${name}.db`, dataDir));
+	if (wal) {
+		db.exec("PRAGMA journal_mode=WAL;");
+		db.exec("PRAGMA synchronous=NORMAL;");
+	}
+	return db;
 }
 
 export function randomInt(from: number, to?: number, multipleOf?: number): number {

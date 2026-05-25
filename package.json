@@ -6,14 +6,15 @@
 	"type": "module",
 	"scripts": {
 		"dev": "node --env-file=.env --watch main.ts",
-		"test": "node --env-file=.env --test */**.spec.ts",
-		"test:watch": "node --env-file=.env --test --watch */**.spec.ts",
+		"test": "node --env-file=.env --test \"**/*.spec.ts\"",
+		"test:watch": "node --env-file=.env --test --watch \"**/*.spec.ts\"",
 		"test:file": "node --env-file=.env --test",
 		"format": "prettier --write ."
 	},
 	"imports": {
 		"#plugins/*": "./plugins/*",
-		"#lib/*": "./lib/*"
+		"#lib/*": "./lib/*",
+		"#adapters/*": "./adapters/*"
 	},
 	"keywords": [],
 	"author": {

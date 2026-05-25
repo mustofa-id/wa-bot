@@ -1,20 +1,17 @@
-import { useSQLiteAuthState } from "#lib/auth.ts";
+import { createAdapter } from "#lib/adapter.ts";
 import { ConversationManager, isPrompt } from "#lib/conversation.ts";
 import { getAllPlugins } from "#lib/plugins.ts";
 import { isUserEnabled, tryUpdateUserName } from "#lib/users.ts";
 import { phoneFromJid, randomInt } from "#lib/utils.ts";
-import createWASocket, { downloadMediaMessage, type AnyMessageContent } from "baileys";
-import mime from "mime-types";
-import { basename } from "node:path";
 import { setTimeout } from "node:timers/promises";
-import qrcode from "qrcode";
 
 const plugins = await getAllPlugins();
 
 const userQueues = new Map<string, Promise<void>>();
 let globalQueue: Promise<void> | null = null;
 
-function enqueue(key: string, fn: () => Promise<void>): Promise<void> {
+function enqueue(options: { key: string; fn: () => Promise<void> }): Promise<void> {
+	const { key, fn } = options;
 	const prev = key === "__global__" ? (globalQueue ?? Promise.resolve()) : (userQueues.get(key) ?? Promise.resolve());
 	const next = prev.then(fn, fn);
 	if (key === "__global__") {
@@ -31,234 +28,168 @@ function enqueue(key: string, fn: () => Promise<void>): Promise<void> {
 	return next;
 }
 
-function mediaTypeOf(content: Record<string, any> | null | undefined): BotAttachmentType | undefined {
-	if (content?.documentMessage) return "document";
-	if (content?.videoMessage) return "video";
-	if (content?.imageMessage) return "image";
-	if (content?.audioMessage) return "audio";
-	if (content?.stickerMessage) return "sticker";
-	return undefined;
+function isAsyncGenerator(value: object): value is AsyncGenerator<BotPluginResult> {
+	return value !== null && value !== undefined && Symbol.asyncIterator in value;
 }
 
-function mediaMetaOf(content: Record<string, any> | null | undefined): { mimeType?: string; fileName?: string } {
-	if (content?.documentMessage) {
-		return { mimeType: content.documentMessage.mimetype, fileName: content.documentMessage.fileName };
+async function consumePluginResult(options: {
+	adapter: BotAdapter;
+	conversationManager: ConversationManager;
+	msg: AdapterMessage;
+	targetJid: string;
+	userId: string;
+	result: BotPluginResult | AsyncGenerator<BotPluginResult>;
+}): Promise<void> {
+	const { adapter, conversationManager, msg, targetJid, userId, result } = options;
+	if (!result) return;
+
+	if (isAsyncGenerator(result)) {
+		let iterResult = await result.next();
+		while (!iterResult.done) {
+			const value = iterResult.value as BotPluginResult;
+			await adapter.sendMessage(targetJid, value, value.quoted ? msg : undefined);
+
+			if (isPrompt(value)) {
+				const reply = await conversationManager.waitForMessage(userId);
+				iterResult = await result.next(reply);
+			} else {
+				iterResult = await result.next();
+			}
+		}
+	} else {
+		await adapter.sendMessage(targetJid, result, result.quoted ? msg : undefined);
 	}
-	if (content?.videoMessage) return { mimeType: content.videoMessage.mimetype };
-	if (content?.imageMessage) return { mimeType: content.imageMessage.mimetype };
-	if (content?.audioMessage) return { mimeType: content.audioMessage.mimetype };
-	return {};
 }
 
-function pluginResultToMessage(result: BotPluginResult): AnyMessageContent {
-	switch (result.type) {
-		case "text":
-			return { text: result.text };
-		case "image":
-			return { image: { url: result.filePath }, caption: result.caption };
-		case "video":
-			return { video: { url: result.filePath }, caption: result.caption };
-		case "audio":
-			return { audio: { url: result.filePath }, caption: result.caption };
-		case "sticker":
-			return { sticker: { url: result.filePath }, caption: result.caption };
-		case "document":
-			return {
-				document: { url: result.filePath },
-				mimetype: mime.lookup(result.filePath) || "application/octet-stream",
-				caption: result.caption,
-				fileName: basename(result.filePath),
-			};
+async function handlePluginExecution(options: {
+	adapter: BotAdapter;
+	conversationManager: ConversationManager;
+	msg: AdapterMessage;
+	targetJid: string;
+	user: BotUser;
+	args: string[];
+	plugin: BotPlugin;
+}): Promise<void> {
+	const { adapter, conversationManager, msg, targetJid, user, args, plugin } = options;
+	const attachment = msg.hasMedia ? { type: msg.mediaType!, get: async () => adapter.downloadMedia(msg) } : undefined;
+	try {
+		const result = await plugin.run({ args, user, attachment });
+		await consumePluginResult({ adapter, conversationManager, msg, targetJid, userId: user.id, result });
+	} finally {
+		conversationManager.cleanup(user.id);
 	}
 }
 
 async function startBot() {
-	const { state, saveCreds } = await useSQLiteAuthState();
-	const waSocket = createWASocket({ auth: state });
+	const adapter = await createAdapter();
 	const conversationManager = new ConversationManager();
 
-	waSocket.ev.on("creds.update", saveCreds);
+	let ownerPhone = "";
 
-	waSocket.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
-		if (connection === "close") {
-			const error = lastDisconnect?.error as any;
-			const statusCode = error?.output?.statusCode;
-			console.warn("closed:", error);
-
-			// don't logout, always reconnect unless explicitly logged out
-			const shouldReconnect = statusCode !== 401;
-			if (shouldReconnect) {
-				// reconnect on pairing restart errors
-				await setTimeout(5_000);
-				await startBot();
+	adapter.onConnectionUpdate((update) => {
+		if (update.status === "disconnected") {
+			console.warn("closed:", update.reason);
+			if (update.shouldReconnect) {
+				setTimeout(5_000).then(() => startBot());
 			}
 			return;
 		}
 
-		if (connection === "open") {
+		if (update.status === "connected") {
 			console.log("connection: open");
+			ownerPhone = update.ownerId ?? "";
+		}
+	});
+
+	adapter.onMessage(async (msg) => {
+		const text = msg.text?.trim();
+		if (!text) return;
+
+		const user: BotUser = {
+			id: msg.from,
+			idAlt: msg.from,
+			fullName: msg.pushName,
+		};
+		const targetJid = msg.chat;
+
+		try {
+			await adapter.readMessages(msg);
+			await adapter.sendPresenceUpdate(targetJid, "composing");
+		} catch {}
+
+		await setTimeout(randomInt(2_000, 4_000));
+
+		if (conversationManager.resolve(user.id, text)) return;
+		if (!text.startsWith("!")) return;
+
+		const senderPhone = phoneFromJid(user.idAlt ?? user.id);
+
+		if (senderPhone !== ownerPhone && !isUserEnabled(senderPhone)) {
+			await adapter.sendMessage(
+				targetJid,
+				{ type: "text", text: "Kamu tidak terdaftar atau tidak diizinkan menggunakan aplikasi ini." },
+				msg,
+			);
+			return;
 		}
 
-		if (qr) {
-			const qrh = await qrcode.toString(qr, {
-				type: "terminal",
-				small: true,
+		tryUpdateUserName(senderPhone, user.fullName);
+
+		const [cmd, ...args] = text.split(/\s+/);
+		const plugin = plugins.find((p) => p.command == cmd);
+
+		if (!plugin) {
+			await adapter.sendMessage(targetJid, { type: "text", text: `Perintah \`${cmd}\` tidak dikenali` }, msg);
+			return;
+		}
+
+		if (
+			(plugin.queue === "user" && userQueues.has(user.id)) ||
+			(plugin.queue === "global" && globalQueue !== null)
+		) {
+			await adapter.sendMessage(
+				targetJid,
+				{ type: "text", text: "Permintaan kamu sedang mengantre, mohon tunggu..." },
+				msg,
+			);
+		}
+
+		const execute = () =>
+			handlePluginExecution({
+				adapter,
+				conversationManager,
+				msg,
+				targetJid,
+				user,
+				args,
+				plugin,
 			});
-			console.log(qrh);
-		}
-	});
 
-	waSocket.ev.on("messages.upsert", async ({ messages, type }) => {
-		console.log(`messages.upsert: type=${type}, count=${messages.length}`);
-		if (type != "notify") return;
-
-		for (const msg of messages) {
-			// if (msg.key.fromMe) continue;
-			if (msg.broadcast) continue; // skip broadcast like contact Status update
-
-			const isGroup = msg.key.remoteJid?.trim()?.endsWith("@g.us") || false;
-
-			const user: BotUser = {
-				id: isGroup ? msg.key.participant! : msg.key.remoteJid!,
-				idAlt: isGroup ? msg.key.participantAlt! : msg.key.remoteJidAlt!,
-				username: isGroup ? msg.key.participantUsername : msg.key.remoteJidUsername,
-				fullName: msg.pushName,
-			};
-
-			const targetJid = msg.key.remoteJid!; // correct for user or group
-
-			const text =
-				msg.message?.conversation ||
-				msg.message?.extendedTextMessage?.text ||
-				msg.message?.imageMessage?.caption ||
-				msg.message?.videoMessage?.caption ||
-				msg.message?.documentMessage?.caption;
-
-			console.log(`[${new Date().toLocaleString()}] 💬 ${user.idAlt} (${user.fullName || "<no name>"}): ${text}`);
-
-			if (!text) continue;
-
-			const trimmed = text.trim();
-
-			try {
-				await waSocket.readMessages([msg.key]);
-				await waSocket.sendPresenceUpdate("composing", targetJid);
-			} catch {}
-			await setTimeout(randomInt(2_000, 4_000));
-
-			if (conversationManager.resolve(user.id, trimmed)) continue;
-			if (!trimmed.startsWith("!")) continue;
-
-			const ownerPhone = phoneFromJid(state.creds.me?.id ?? "");
-			const senderPhone = phoneFromJid(user.idAlt ?? user.id);
-
-			const [cmd, ...args] = trimmed.split(/\s+/);
-			const plugin = plugins.find((p) => p.command == cmd);
-
-			try {
-				if (senderPhone !== ownerPhone && !isUserEnabled(senderPhone)) {
-					throw new Error("Kamu tidak terdaftar atau tidak diizinkan menggunakan aplikasi ini.");
-				}
-
-				tryUpdateUserName(senderPhone, user.fullName);
-
-				if (!plugin) {
-					throw new Error(`Perintah \`${cmd}\` tidak dikenali`);
-				}
-
-				if (
-					(plugin.queue === "user" && userQueues.has(user.id)) ||
-					(plugin.queue === "global" && globalQueue !== null)
-				) {
-					await waSocket.sendMessage(
-						targetJid,
-						{ text: "Permintaan kamu sedang mengantre, mohon tunggu..." },
-						{ quoted: msg },
-					);
-				}
-
-				const execute = async () => {
-					try {
-						const msgContent = msg.message;
-						const quotedContent = msgContent?.extendedTextMessage?.contextInfo?.quotedMessage;
-
-						const mediaContent = mediaTypeOf(msgContent) ? msgContent : quotedContent;
-						const hasOwnMedia = !!mediaTypeOf(msgContent);
-						const attachmentType = mediaContent ? mediaTypeOf(mediaContent) : undefined;
-
-						const getAttachment: GetAttachment = async () => {
-							if (!mediaContent) throw new Error("Tidak ada lampiran media");
-
-							const targetMsg = hasOwnMedia ? msg : { message: mediaContent };
-							const buffer = (await downloadMediaMessage(
-								targetMsg as any,
-								"buffer",
-								{},
-								{
-									reuploadRequest: waSocket.updateMediaMessage,
-									logger: waSocket.logger,
-								},
-							)) as Buffer;
-
-							const { mimeType, fileName } = mediaMetaOf(mediaContent);
-
-							return { buffer, mimeType, fileName };
-						};
-
-						const attachment =
-							attachmentType && mediaContent ? { type: attachmentType, get: getAttachment } : undefined;
-
-						const result = await plugin.run({ args, user, attachment });
-
-						if (result && Symbol.asyncIterator in (result as any)) {
-							const iter = result as AsyncGenerator<BotPluginResult>;
-							let iterResult = await iter.next();
-							while (!iterResult.done) {
-								const value = iterResult.value;
-								await waSocket.sendMessage(targetJid, pluginResultToMessage(value), {
-									quoted: value.quoted ? msg : undefined,
-								});
-
-								if (isPrompt(value)) {
-									const reply = await conversationManager.waitForMessage(user.id);
-									iterResult = await iter.next(reply);
-								} else {
-									iterResult = await iter.next();
-								}
-							}
-						} else if (result) {
-							await waSocket.sendMessage(targetJid, pluginResultToMessage(result as BotPluginResult), {
-								quoted: (result as BotPluginResult).quoted ? msg : undefined,
-							});
-						}
-					} finally {
-						conversationManager.cleanup(user.id);
-					}
-				};
-
-				switch (plugin.queue) {
-					case "user":
-						await enqueue(user.id, execute);
-						break;
-					case "global":
-						await enqueue("__global__", execute);
-						break;
-					default:
-						await execute();
-						break;
-				}
-			} catch (error: any) {
-				console.error(`Error "${cmd}":`, error);
-				await waSocket.sendMessage(
-					targetJid,
-					{ text: `😵 ${error?.message || "Unknown error"}` },
-					{ quoted: msg },
-				);
-			} finally {
-				await waSocket.sendPresenceUpdate("paused", targetJid);
+		try {
+			switch (plugin.queue) {
+				case "user":
+					await enqueue({ key: user.id, fn: execute });
+					break;
+				case "global":
+					await enqueue({ key: "__global__", fn: execute });
+					break;
+				default:
+					await execute();
+					break;
 			}
+		} catch (error: unknown) {
+			console.error(`Error "${cmd}":`, error);
+			await adapter.sendMessage(
+				targetJid,
+				{ type: "text", text: `😵 ${error instanceof Error ? error.message : "Unknown error"}` },
+				msg,
+			);
+		} finally {
+			await adapter.sendPresenceUpdate(targetJid, "paused");
 		}
 	});
+
+	await adapter.start();
 }
 
 await startBot();

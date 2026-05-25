@@ -48,5 +48,39 @@ interface BotHook {
 	handle: () => MaybePromise<void>;
 }
 
-// TODO not yet implemented. So we can switch between WhatsApp API/lib easily.
-interface BotAdapter {}
+interface AdapterMessage {
+	id: string;
+	from: string;
+	chat: string;
+	isGroup: boolean;
+	text?: string | null;
+	pushName?: string | null;
+	timestamp: number;
+	hasMedia: boolean;
+	mediaType?: BotAttachmentType;
+	_raw: unknown;
+}
+
+interface AdapterConnectionUpdate {
+	status: "connecting" | "connected" | "disconnected" | "qr";
+	qr?: string;
+	reason?: string;
+	shouldReconnect: boolean;
+	ownerId?: string;
+}
+
+interface BotAdapter {
+	readonly name: string;
+	start(): Promise<void>;
+	stop(): Promise<void>;
+	onMessage(handler: (msg: AdapterMessage) => void): void;
+	onConnectionUpdate(handler: (update: AdapterConnectionUpdate) => void): void;
+	sendMessage(jid: string, content: BotPluginResult, quoted?: AdapterMessage): Promise<void>;
+	sendPresenceUpdate(jid: string, type: "composing" | "paused"): Promise<void>;
+	readMessages(msg: AdapterMessage): Promise<void>;
+	downloadMedia(msg: AdapterMessage): Promise<{
+		buffer: Buffer;
+		mimeType?: string;
+		fileName?: string;
+	}>;
+}

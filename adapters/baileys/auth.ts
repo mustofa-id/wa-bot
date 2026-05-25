@@ -1,4 +1,4 @@
-import { getDataDir } from "#lib/utils.ts";
+import { useSqlite } from "#lib/utils.ts";
 import {
 	type AuthenticationCreds,
 	BufferJSON,
@@ -7,13 +7,8 @@ import {
 	type SignalDataSet,
 	type SignalKeyStore,
 } from "baileys";
-import { DatabaseSync } from "node:sqlite";
 
-const dataDir = await getDataDir();
-const db = new DatabaseSync(new URL("auth.db", dataDir));
-
-db.exec("PRAGMA journal_mode=WAL;");
-db.exec("PRAGMA synchronous=NORMAL;");
+const db = await useSqlite("auth");
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS creds (
