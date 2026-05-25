@@ -240,9 +240,7 @@ export async function soffice(
 		try {
 			await access(cwdPath, constants.F_OK);
 		} catch {
-			throw new Error(
-				`soffice finished but output file not found (looked at: ${outputPath} and ${cwdPath})`,
-			);
+			throw new Error(`soffice finished but output file not found (looked at: ${outputPath} and ${cwdPath})`);
 		}
 		await rename(cwdPath, outputPath);
 	}

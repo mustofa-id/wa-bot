@@ -29,6 +29,10 @@
 - **Never** commit or sync without user confirmation
 - `main`: semantic prefixes (`fix:`, `chore:`, `feat:`); other branches: short messages OK (squash-merged)
 
+## Conventions
+
+- **Named parameters for multi-arg functions**: If a function takes more than one parameter, use an object/options parameter instead of positional args. See `lib/utils.ts` (`ffmpeg`, `ghostScript`, `soffice`, etc.) for the pattern.
+
 ## Architecture
 
 - **Entrypoint**: `main.ts` — imports via `#lib/*` and `#plugins/*` aliases (Node `imports` map in `package.json`)
