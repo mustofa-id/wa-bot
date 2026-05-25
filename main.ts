@@ -1,8 +1,7 @@
-import { createAdapter } from "#lib/adapter.ts";
 import { ConversationManager, isPrompt } from "#lib/conversation.ts";
 import { getAllPlugins } from "#lib/plugins.ts";
 import { isUserEnabled, tryUpdateUserName } from "#lib/users.ts";
-import { phoneFromJid, randomInt } from "#lib/utils.ts";
+import { createAdapter, phoneFromJid, randomInt } from "#lib/utils.ts";
 import { setTimeout } from "node:timers/promises";
 
 const plugins = await getAllPlugins();

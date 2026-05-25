@@ -1,5 +1,6 @@
 import {
 	cleanUp,
+	createAdapter,
 	ffmpeg,
 	ffprobe,
 	getDataDir,
@@ -60,6 +61,44 @@ describe("getDataDir", () => {
 		process.env.DATA_DIR = newDir.href;
 		await getDataDir();
 		await access(newDir, constants.R_OK | constants.W_OK | constants.X_OK);
+	});
+});
+
+describe("createAdapter", () => {
+	const ORIGINAL_ADAPTER = process.env.ADAPTER;
+
+	afterEach(() => {
+		process.env.ADAPTER = ORIGINAL_ADAPTER;
+	});
+
+	it("returns a BotAdapter for a valid adapter name", async () => {
+		const adapter = await createAdapter("baileys");
+		assert.ok(adapter);
+		assert.equal(typeof adapter.start, "function");
+		assert.equal(typeof adapter.stop, "function");
+		assert.equal(typeof adapter.onMessage, "function");
+		assert.equal(typeof adapter.onConnectionUpdate, "function");
+		assert.equal(typeof adapter.sendMessage, "function");
+		assert.equal(typeof adapter.sendPresenceUpdate, "function");
+		assert.equal(typeof adapter.readMessages, "function");
+		assert.equal(typeof adapter.downloadMedia, "function");
+		assert.equal(adapter.name, "baileys");
+	});
+
+	it("uses ADAPTER env var when no type given", async () => {
+		process.env.ADAPTER = "baileys";
+		const adapter = await createAdapter();
+		assert.equal(adapter.name, "baileys");
+	});
+
+	it("defaults to baileys when no env var or type given", async () => {
+		delete process.env.ADAPTER;
+		const adapter = await createAdapter();
+		assert.equal(adapter.name, "baileys");
+	});
+
+	it("rejects for non-existent adapter", async () => {
+		await assert.rejects(createAdapter("nonexistent"));
 	});
 });
 

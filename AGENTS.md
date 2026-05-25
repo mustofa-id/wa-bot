@@ -35,7 +35,7 @@
 
 ## Architecture
 
-- **Adapter pattern**: WA library abstracted behind `BotAdapter` interface. Factory at `lib/adapter.ts` reads `ADAPTER` env var. Current impl: `adapters/baileys/`.
+- **Adapter pattern**: WA library abstracted behind `BotAdapter` interface. `createAdapter()` in `lib/utils.ts` reads `ADAPTER` env var. Current impl: `adapters/baileys/`.
 - **Entrypoint**: `main.ts` — imports via `#lib/*`, `#plugins/*`, `#adapters/*` aliases (Node `imports` map in `package.json`)
 - **Plugin auto-discovery**: `lib/plugins.ts:getAllPlugins()` globs `plugins/**.ts`, dynamic-imports each; expects `export default BotPlugin`
 - **Built-in plugins**: `!help` and `!users` defined as factory functions in `lib/plugins.ts` (not in `plugins/` dir)
