@@ -16,9 +16,6 @@ const videoConfig = [
 	["-pix_fmt", "yuv420p"],
 	["-crf", "20"],
 	["-maxrate", "6M"],
-	["-preset", "faster"],
-	["-max_muxing_queue_size", "2048"],
-	["-bufsize", "4M"],
 	["-c:a", "aac"],
 	["-b:a", "128k"],
 	["-ar", "48000"],
@@ -59,7 +56,6 @@ async function splitVideo(
 		const segDuration = Math.min(segmentDuration, duration - start);
 
 		await ffmpeg(inputPath, {
-			mode: "balance",
 			preInputArgs: ["-ss", String(start)],
 			args: ["-t", String(segDuration), "-c", "copy"],
 			outputPath: segments[i],
@@ -108,7 +104,6 @@ export default {
 
 		try {
 			const outputPath = await ffmpeg(inputPath, {
-				mode: "balance",
 				args: isVideo ? videoConfig : imageConfig,
 			});
 			cleanupPaths.push(outputPath);

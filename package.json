@@ -13,8 +13,7 @@
 	},
 	"imports": {
 		"#plugins/*": "./plugins/*",
-		"#lib/*": "./lib/*",
-		"#adapters/*": "./adapters/*"
+		"#lib/*": "./lib/*"
 	},
 	"keywords": [],
 	"author": {

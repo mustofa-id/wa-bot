@@ -7,13 +7,13 @@ import { after, before, describe, it } from "node:test";
 describe("useSQLiteAuthState", () => {
 	let tempDir: string;
 	let originalDataDir: string | undefined;
-	let mod: typeof import("#adapters/baileys/auth.ts");
+	let mod: typeof import("#lib/auth.ts");
 
 	before(async () => {
 		originalDataDir = process.env.DATA_DIR;
 		tempDir = await mkdtemp(join(tmpdir(), "auth-test-"));
 		process.env.DATA_DIR = `file://${tempDir}/`;
-		mod = await import("#adapters/baileys/auth.ts");
+		mod = await import("#lib/auth.ts");
 	});
 
 	after(async () => {

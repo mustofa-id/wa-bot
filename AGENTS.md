@@ -21,7 +21,7 @@
 
 - `.env` gitignored — copy from `.env.example`. Variables:
     - `DATA_DIR` — data directory (defaults to `<project>/data/`)
-    - `FFMPEG_MODE` — ffmpeg CPU mode: `gentel` | `balance` (default) | `performance`
+    - `FFMPEG_MODE` — ffmpeg mode: `gentle` | `balance` (default) | `performance`
 - Tests also require `.env` (commands hardcode `--env-file=.env`)
 
 ## Git
@@ -35,15 +35,15 @@
 
 ## Architecture
 
-- **Adapter pattern**: WA library abstracted behind `BotAdapter` interface. `createAdapter()` in `lib/utils.ts` reads `ADAPTER` env var. Current impl: `adapters/baileys/`.
-- **Entrypoint**: `main.ts` — imports via `#lib/*`, `#plugins/*`, `#adapters/*` aliases (Node `imports` map in `package.json`)
+- **Monolithic**: Baileys (WhatsApp Web library) used directly in `main.ts`. No adapter abstraction.
+- **Entrypoint**: `main.ts` — imports via `#lib/*` and `#plugins/*` aliases (Node `imports` map in `package.json`)
 - **Plugin auto-discovery**: `lib/plugins.ts:getAllPlugins()` globs `plugins/**.ts`, dynamic-imports each; expects `export default BotPlugin`
 - **Built-in plugins**: `!help` and `!users` defined as factory functions in `lib/plugins.ts` (not in `plugins/` dir)
 - **Plugin shape** (`lib/types.d.ts`): `command` (template literal `!${string}`), `description?`, `queue?` (`"user"`/`"global"`), `run(ctx)`. Plugins use `satisfies BotPlugin` for type safety.
 - **Generator plugins**: `run` returns `AsyncGenerator<BotPluginResult>` — yields "Mohon tunggu…" then processed result. Errors after yields still deliver sent messages.
 - **Interactive plugins**: `yield prompt({ type: "text", text: "?" })` waits for user text reply — evaluates to the reply string. Non-`!` messages from a user with a pending `prompt()` route to resolve it. In-memory sessions with 5 min inactivity timeout.
 - **Queues**: `queue: "user"` serializes per-user; `queue: "global"` serializes all. Users notified while queued.
-- **Auth**: SQLite-backed (`data/auth.db`) via `adapters/baileys/auth.ts` using `node:sqlite`. Owner resolved from `state.creds.me?.id`.
+- **Auth**: SQLite-backed (`data/auth.db`) via `lib/auth.ts` using `node:sqlite`. Owner resolved from `state.creds.me?.id`.
 - **Users**: SQLite-backed (`data/users.db`) via `lib/users.ts`. Owner-only commands (`!users add|ls|rm|on|off`). Owner bypasses user check (always permitted even if not in users table).
 - **Media attachment**: `attachment.get()` downloads to Buffer. Falls back to quoted message if the command message has no media. `type` reflects whichever source has media.
 - **Auto-reconnect**: On connection close, bot waits 5s and restarts unless statusCode 401 (logout).
