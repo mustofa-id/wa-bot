@@ -70,14 +70,11 @@ export default class BaileysAdapter implements BotAdapter {
 
 	async downloadMedia(msg: AdapterMessage): Promise<{ buffer: Buffer; mimeType?: string; fileName?: string }> {
 		const raw = msg._raw as WAMessage;
-		const msgContent = raw.message;
-		const quotedContent = msgContent?.extendedTextMessage?.contextInfo?.quotedMessage as WAMessageContent | null;
-		const mediaContent = mediaTypeOf(msgContent) ? msgContent : quotedContent;
-		const hasOwnMedia = !!mediaTypeOf(msgContent);
+		const mediaPayload = msg._mediaPayload;
+		if (!mediaPayload) throw new Error("Tidak ada lampiran media");
 
-		if (!mediaContent) throw new Error("Tidak ada lampiran media");
-
-		const targetMsg = hasOwnMedia ? raw : { message: mediaContent };
+		const hasOwnMedia = !!mediaTypeOf(raw.message);
+		const targetMsg = hasOwnMedia ? raw : { message: mediaPayload };
 		const buffer = (await downloadMediaMessage(
 			targetMsg as any,
 			"buffer",
@@ -85,7 +82,7 @@ export default class BaileysAdapter implements BotAdapter {
 			{ reuploadRequest: this.ws!.updateMediaMessage, logger: this.ws!.logger },
 		)) as Buffer;
 
-		const normalized = normalizeMessageContent(mediaContent);
+		const normalized = normalizeMessageContent(mediaPayload);
 		let mimeType: string | undefined;
 		let fileName: string | undefined;
 		if (normalized?.documentMessage) {
@@ -183,6 +180,7 @@ export default class BaileysAdapter implements BotAdapter {
 			hasMedia: !!attachmentType,
 			mediaType: attachmentType,
 			_raw: raw,
+			_mediaPayload: mediaContent ?? undefined,
 		};
 	}
 

@@ -63,6 +63,7 @@ interface AdapterMessage {
 	hasMedia: boolean;
 	mediaType?: BotAttachmentType;
 	_raw: unknown;
+	_mediaPayload?: Record<string, any>;
 }
 
 interface AdapterConnectionUpdate {
