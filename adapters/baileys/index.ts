@@ -2,6 +2,7 @@ import { phoneFromJid } from "#lib/utils.ts";
 import createWASocket, {
 	DisconnectReason,
 	downloadMediaMessage,
+	normalizeMessageContent,
 	type AnyMessageContent,
 	type WAMessage,
 	type WAMessageContent,
@@ -12,11 +13,12 @@ import qrcode from "qrcode";
 import { useSQLiteAuthState } from "./auth.ts";
 
 function mediaTypeOf(content: WAMessageContent | null | undefined): BotAttachmentType | undefined {
-	if (content?.documentMessage) return "document";
-	if (content?.videoMessage) return "video";
-	if (content?.imageMessage) return "image";
-	if (content?.audioMessage) return "audio";
-	if (content?.stickerMessage) return "sticker";
+	const normalized = normalizeMessageContent(content);
+	if (normalized?.documentMessage) return "document";
+	if (normalized?.videoMessage) return "video";
+	if (normalized?.imageMessage) return "image";
+	if (normalized?.audioMessage) return "audio";
+	if (normalized?.stickerMessage) return "sticker";
 	return undefined;
 }
 
@@ -86,17 +88,18 @@ export default class BaileysAdapter implements BotAdapter {
 			},
 		);
 
+		const normalized = normalizeMessageContent(mediaContent);
 		let mimeType: string | undefined;
 		let fileName: string | undefined;
-		if (mediaContent.documentMessage) {
-			mimeType = mediaContent.documentMessage.mimetype!;
-			fileName = mediaContent.documentMessage.fileName!;
-		} else if (mediaContent.videoMessage) {
-			mimeType = mediaContent.videoMessage.mimetype!;
-		} else if (mediaContent.imageMessage) {
-			mimeType = mediaContent.imageMessage.mimetype!;
-		} else if (mediaContent.audioMessage) {
-			mimeType = mediaContent.audioMessage.mimetype!;
+		if (normalized?.documentMessage) {
+			mimeType = normalized.documentMessage.mimetype!;
+			fileName = normalized.documentMessage.fileName!;
+		} else if (normalized?.videoMessage) {
+			mimeType = normalized.videoMessage.mimetype!;
+		} else if (normalized?.imageMessage) {
+			mimeType = normalized.imageMessage.mimetype!;
+		} else if (normalized?.audioMessage) {
+			mimeType = normalized.audioMessage.mimetype!;
 		}
 
 		return { buffer, mimeType, fileName };
