@@ -18,10 +18,10 @@ function helpPlugin(modules: BotPlugin[]): BotPlugin {
 				type: "text",
 				quoted: true,
 				text:
-					`WA-Bot v${pkg.version} ©2026\n ` +
-					`Source: https://github.com/mustofa-id/wa-bot\n ` +
-					`${"─".repeat(16)}\n ` +
-					`*Daftar Perintah:*\n ` +
+					`WA-Bot v${pkg.version} ©2026 \n` +
+					`Source: https://github.com/mustofa-id/wa-bot \n` +
+					`${"─".repeat(16)} \n` +
+					`*Daftar Perintah:* \n` +
 					`${lines.join("\n\n")}`,
 			};
 		},
@@ -35,7 +35,7 @@ function usersPlugin(): BotPlugin {
 		async run({ args, user }) {
 			const { state } = await useSQLiteAuthState();
 			const ownerPhone = phoneFromJid(state.creds.me?.id ?? "");
-			const senderPhone = phoneFromJid(user.idAlt ?? user.id);
+			const senderPhone = phoneFromJid(user.pnJid ?? user.id);
 
 			let message: string;
 
