@@ -255,7 +255,7 @@ async function startBot() {
 						break;
 				}
 			} catch (error: unknown) {
-				console.error(`Error "${cmd}":`, error);
+				console.error(`Error "${cmd} ${args}":`, error);
 				const msgFmt =
 					error instanceof Error
 						? error.message.trim().split("\n").filter(Boolean).join("\n> ")

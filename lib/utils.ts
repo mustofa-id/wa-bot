@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { access, chmod, mkdir, readdir, rename, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, dirname, extname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { setTimeout } from "node:timers/promises";
@@ -244,10 +246,14 @@ export async function soffice(
 		convertTo: string;
 	},
 ): Promise<string> {
+	const loProfile = join(tmpdir(), `soffice-${randomUUID()}`);
+	await mkdir(loProfile, { recursive: true });
+
 	const cmd = "soffice";
 	const args = [
 		"--headless",
 		"--norestore",
+		`-env:UserInstallation=file://${loProfile}`,
 		"--convert-to",
 		options.convertTo,
 		"--outdir",
@@ -263,56 +269,79 @@ export async function soffice(
 		before = [];
 	}
 
-	await new Promise<void>((resolve, reject) => {
-		const proc = spawn(cmd, args);
-		let stderr = "";
-		proc.stderr.on("data", (d) => {
-			stderr += d.toString();
-		});
-		proc.on("close", (code) => {
-			if (code === 0) resolve();
-			else reject(new Error(`soffice exited with code ${code}: ${stderr.slice(-500)}`));
-		});
-		proc.on("error", reject);
-	});
-
-	// Find newly created file in output dir
-	const after = await readdir(options.outDir);
-	const newFile = after.find((f) => !before.includes(f) && !f.startsWith(".~lock."));
-	if (newFile) {
-		const outputPath = join(options.outDir, newFile);
-		try {
-			await chmod(outputPath, 0o644);
-		} catch {
-			/* best-effort */
-		}
-		return outputPath;
-	}
-
-	// Fallback: LibreOffice sometimes ignores --outdir and writes to cwd
-	const ext = extname(inputPath);
-	const base = basename(inputPath, ext);
-	const expectedName = `${base}.${options.convertTo}`;
-
-	let cwdFiles: string[];
 	try {
-		cwdFiles = await readdir(process.cwd());
-	} catch {
-		cwdFiles = [];
-	}
+		await new Promise<void>((resolve, reject) => {
+			const proc = spawn(cmd, args);
+			let stderr = "";
+			proc.stderr.on("data", (d) => {
+				stderr += d.toString();
+			});
+			proc.on("close", (code) => {
+				if (code === 0) resolve();
+				else reject(new Error(`soffice exited with code ${code}: ${stderr.slice(-500)}`));
+			});
+			proc.on("error", reject);
+		});
 
-	if (cwdFiles.includes(expectedName)) {
-		const outputPath = join(options.outDir, expectedName);
-		await rename(join(process.cwd(), expectedName), outputPath);
+		// 1. Check expected path (most common)
+		const ext = extname(inputPath);
+		const base = basename(inputPath, ext);
+		const expectedName = `${base}.${options.convertTo}`;
+		const expectedPath = join(options.outDir, expectedName);
+
 		try {
-			await chmod(outputPath, 0o644);
+			await access(expectedPath, constants.F_OK);
+			try {
+				await chmod(expectedPath, 0o644);
+			} catch {
+				/* best-effort */
+			}
+			return expectedPath;
 		} catch {
-			/* best-effort */
+			/* not at expected path */
 		}
-		return outputPath;
-	}
 
-	throw new Error(`soffice finished but output file not found (looked in: ${options.outDir} and ${process.cwd()})`);
+		// 2. Find new file in output dir (catch name variance)
+		const after = await readdir(options.outDir);
+		const newFile = after.find(
+			(f) => f.endsWith(`.${options.convertTo}`) && !before.includes(f) && !f.startsWith(".~lock."),
+		);
+		if (newFile) {
+			const outputPath = join(options.outDir, newFile);
+			try {
+				await chmod(outputPath, 0o644);
+			} catch {
+				/* best-effort */
+			}
+			return outputPath;
+		}
+
+		// 3. Fallback: check cwd (LibreOffice sometimes ignores --outdir)
+		let cwdFiles: string[];
+		try {
+			cwdFiles = await readdir(process.cwd());
+		} catch {
+			cwdFiles = [];
+		}
+
+		const cwdMatch = cwdFiles.find((f) => !f.startsWith(".~lock.") && f.endsWith(`.${options.convertTo}`));
+		if (cwdMatch) {
+			const outputPath = join(options.outDir, cwdMatch);
+			await rename(join(process.cwd(), cwdMatch), outputPath);
+			try {
+				await chmod(outputPath, 0o644);
+			} catch {
+				/* best-effort */
+			}
+			return outputPath;
+		}
+
+		throw new Error(
+			`soffice finished but output file not found (looked in: ${options.outDir} and ${process.cwd()})`,
+		);
+	} finally {
+		await rm(loProfile, { recursive: true, force: true });
+	}
 }
 
 /**
