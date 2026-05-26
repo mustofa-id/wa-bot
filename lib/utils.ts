@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { constants } from "node:fs";
-import { access, chmod, mkdir, rename, rm } from "node:fs/promises";
+import { access, chmod, mkdir, readdir, rename, rm } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { setTimeout } from "node:timers/promises";
@@ -245,7 +245,23 @@ export async function soffice(
 	},
 ): Promise<string> {
 	const cmd = "soffice";
-	const args = ["--headless", "--convert-to", options.convertTo, "--outdir", options.outDir, inputPath];
+	const args = [
+		"--headless",
+		"--norestore",
+		"--convert-to",
+		options.convertTo,
+		"--outdir",
+		options.outDir,
+		inputPath,
+	];
+
+	// Snapshot output dir before soffice
+	let before: string[];
+	try {
+		before = await readdir(options.outDir);
+	} catch {
+		before = [];
+	}
 
 	await new Promise<void>((resolve, reject) => {
 		const proc = spawn(cmd, args);
@@ -260,28 +276,43 @@ export async function soffice(
 		proc.on("error", reject);
 	});
 
+	// Find newly created file in output dir
+	const after = await readdir(options.outDir);
+	const newFile = after.find((f) => !before.includes(f) && !f.startsWith(".~lock."));
+	if (newFile) {
+		const outputPath = join(options.outDir, newFile);
+		try {
+			await chmod(outputPath, 0o644);
+		} catch {
+			/* best-effort */
+		}
+		return outputPath;
+	}
+
+	// Fallback: LibreOffice sometimes ignores --outdir and writes to cwd
 	const ext = extname(inputPath);
 	const base = basename(inputPath, ext);
-	const outputPath = join(options.outDir, `${base}.${options.convertTo}`);
+	const expectedName = `${base}.${options.convertTo}`;
 
+	let cwdFiles: string[];
 	try {
-		await access(outputPath, constants.F_OK);
+		cwdFiles = await readdir(process.cwd());
 	} catch {
-		const cwdPath = join(process.cwd(), `${base}.${options.convertTo}`);
+		cwdFiles = [];
+	}
+
+	if (cwdFiles.includes(expectedName)) {
+		const outputPath = join(options.outDir, expectedName);
+		await rename(join(process.cwd(), expectedName), outputPath);
 		try {
-			await access(cwdPath, constants.F_OK);
+			await chmod(outputPath, 0o644);
 		} catch {
-			throw new Error(`soffice finished but output file not found (looked at: ${outputPath} and ${cwdPath})`);
+			/* best-effort */
 		}
-		await rename(cwdPath, outputPath);
+		return outputPath;
 	}
 
-	try {
-		await chmod(outputPath, 0o644);
-	} catch {
-		/* best-effort — some filesystems don't support chmod */
-	}
-	return outputPath;
+	throw new Error(`soffice finished but output file not found (looked in: ${options.outDir} and ${process.cwd()})`);
 }
 
 /**

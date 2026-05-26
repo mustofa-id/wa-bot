@@ -256,7 +256,10 @@ async function startBot() {
 				}
 			} catch (error: unknown) {
 				console.error(`Error "${cmd}":`, error);
-				const msgFmt = error instanceof Error ? error.message.trim().split("\n").join("\n> ") : "Unknown error";
+				const msgFmt =
+					error instanceof Error
+						? error.message.trim().split("\n").filter(Boolean).join("\n> ")
+						: "Unknown error";
 				await waSocket.sendMessage(
 					targetJid,
 					{ text: `⚠️ Perintah Gagal Dijalankan \n\n> ${msgFmt}` },
