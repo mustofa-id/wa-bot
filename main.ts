@@ -9,27 +9,6 @@ import { basename } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import qrcode from "qrcode";
 
-const plugins = await getAllPlugins();
-const userQueues = new Map<string, Promise<void>>();
-let globalQueue: Promise<void> | null = null;
-
-function enqueue(key: string, fn: () => Promise<void>): Promise<void> {
-	const prev = key === "__global__" ? (globalQueue ?? Promise.resolve()) : (userQueues.get(key) ?? Promise.resolve());
-	const next = prev.then(fn, fn);
-	if (key === "__global__") {
-		globalQueue = next;
-		next.finally(() => {
-			if (globalQueue === next) globalQueue = null;
-		}).catch(() => {});
-	} else {
-		userQueues.set(key, next);
-		next.finally(() => {
-			if (userQueues.get(key) === next) userQueues.delete(key);
-		}).catch(() => {});
-	}
-	return next;
-}
-
 function mediaTypeOf(content: Record<string, any> | null | undefined): BotAttachmentType | undefined {
 	if (content?.documentMessage) return "document";
 	if (content?.videoMessage) return "video";
@@ -73,8 +52,31 @@ function pluginResultToMessage(result: BotPluginResult): AnyMessageContent {
 
 async function startBot() {
 	const { state, saveCreds } = await useSQLiteAuthState();
-	const waSocket = createWASocket({ auth: state });
+	const ownerId = stripDeviceSuffix(state.creds.me?.lid ?? "");
+	const plugins = await getAllPlugins(ownerId);
+	const userQueues = new Map<string, Promise<void>>();
+	let globalQueue: Promise<void> | null = null;
+
+	function enqueue(key: string, fn: () => Promise<void>): Promise<void> {
+		const prev =
+			key === "__global__" ? (globalQueue ?? Promise.resolve()) : (userQueues.get(key) ?? Promise.resolve());
+		const next = prev.then(fn, fn);
+		if (key === "__global__") {
+			globalQueue = next;
+			next.finally(() => {
+				if (globalQueue === next) globalQueue = null;
+			}).catch(() => {});
+		} else {
+			userQueues.set(key, next);
+			next.finally(() => {
+				if (userQueues.get(key) === next) userQueues.delete(key);
+			}).catch(() => {});
+		}
+		return next;
+	}
+
 	const conversationManager = new ConversationManager();
+	const waSocket = createWASocket({ auth: state });
 
 	waSocket.ev.on("creds.update", saveCreds);
 
@@ -147,7 +149,6 @@ async function startBot() {
 			if (conversationManager.resolve(user.lidJid, text)) continue;
 			if (!text.startsWith("!")) continue;
 
-			const ownerId = stripDeviceSuffix(state.creds.me?.lid ?? "");
 			const senderId = stripDeviceSuffix(user.lidJid);
 
 			const [cmd, ...args] = text.split(/\s+/);

@@ -16,7 +16,7 @@ function validateResult(command: string, result: BotPluginResult) {
 
 describe("getAllPlugins", () => {
 	it("returns all plugin modules from plugins/", async () => {
-		const plugins = await getAllPlugins();
+		const plugins = await getAllPlugins("owner:0@lid");
 		assert.ok(Array.isArray(plugins));
 		assert.ok(plugins.length > 0);
 		for (const plugin of plugins) {
@@ -27,12 +27,12 @@ describe("getAllPlugins", () => {
 	});
 
 	it("every plugin.run() returns a valid response shape", async () => {
-		const plugins = await getAllPlugins();
+		const plugins = await getAllPlugins("owner:0@lid");
 		for (const plugin of plugins) {
 			try {
 				const result = await plugin.run({
 					args: [],
-					user: { lidJid: "test" },
+					user: { lidJid: "test", pnJid: "test" },
 				});
 
 				if (!result) continue;

@@ -1,4 +1,3 @@
-import { useSQLiteAuthState } from "#lib/auth.ts";
 import { addUser, approveUser, disableUser, enableUser, listUsers, removeUser } from "#lib/users.ts";
 import { stripDeviceSuffix } from "#lib/utils.ts";
 import { glob } from "node:fs/promises";
@@ -66,13 +65,11 @@ function registerPlugin(): BotPlugin {
 	};
 }
 
-function usersPlugin(): BotPlugin {
+function usersPlugin(ownerId: string): BotPlugin {
 	return {
 		command: "!users",
 		description: "Mengelola pengguna. Sub-perintah: `approve`, `ls`, `rm`, `on`, `off`",
 		async run({ args, user }) {
-			const { state } = await useSQLiteAuthState();
-			const ownerId = stripDeviceSuffix(state.creds.me?.lid ?? "");
 			const senderId = stripDeviceSuffix(user.lidJid);
 
 			let message: string;
@@ -183,7 +180,7 @@ function usersPlugin(): BotPlugin {
 }
 
 /** Returns all plugins — both user-defined from plugins/ and built-ins. */
-export async function getAllPlugins() {
+export async function getAllPlugins(ownerId: string) {
 	const pluginsDir = new URL("../plugins/", import.meta.url);
 	const plugins = await Array.fromAsync(glob(pluginsDir.pathname + "/**.ts"));
 	const modules = await Promise.all(
@@ -195,7 +192,7 @@ export async function getAllPlugins() {
 	);
 
 	modules.push(registerPlugin());
-	modules.push(usersPlugin());
+	modules.push(usersPlugin(ownerId));
 	modules.push(helpPlugin(modules));
 
 	const seen = new Set<string>();

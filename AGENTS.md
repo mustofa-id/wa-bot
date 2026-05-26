@@ -37,7 +37,7 @@
 
 - **Monolithic**: Baileys (WhatsApp Web library) used directly in `main.ts`. No adapter abstraction.
 - **Entrypoint**: `main.ts` — imports via `#lib/*` and `#plugins/*` aliases (Node `imports` map in `package.json`)
-- **Plugin auto-discovery**: `lib/plugins.ts:getAllPlugins()` globs `plugins/**.ts`, dynamic-imports each; expects `export default BotPlugin`
+- **Plugin auto-discovery**: `lib/plugins.ts:getAllPlugins(ownerId)` globs `plugins/**.ts`, dynamic-imports each; expects `export default BotPlugin`. Called inside `startBot()` in `main.ts` so `ownerId` (derived from auth state) is available.
 - **Built-in plugins**: `!help`, `!register`, and `!users` defined as factory functions in `lib/plugins.ts` (not in `plugins/` dir)
 - **Plugin shape** (`lib/types.d.ts`): `command` (template literal `!${string}`), `description?`, `queue?` (`"user"`/`"global"`), `run(ctx)`. Plugins use `satisfies BotPlugin` for type safety.
 - **Generator plugins**: `run` returns `AsyncGenerator<BotPluginResult>` — yields "Mohon tunggu…" then processed result. Errors after yields still deliver sent messages.
