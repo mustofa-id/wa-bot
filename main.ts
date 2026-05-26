@@ -156,7 +156,10 @@ async function startBot() {
 
 			try {
 				if (senderId !== ownerId && !isUserEnabled(senderId)) {
-					throw new Error("Kamu tidak terdaftar atau tidak diizinkan menggunakan aplikasi ini.");
+					throw new Error(
+						"Kamu tidak terdaftar atau tidak diizinkan menggunakan aplikasi ini. \n" +
+							"Gunakan perintah `!register` untuk mendaftarkan akun kamu.",
+					);
 				}
 
 				if (!plugin) {
