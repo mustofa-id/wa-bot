@@ -1,7 +1,7 @@
 import { useSQLiteAuthState } from "#lib/auth.ts";
 import { ConversationManager, isPrompt } from "#lib/conversation.ts";
 import { getAllPlugins } from "#lib/plugins.ts";
-import { isUserEnabled } from "#lib/users.ts";
+import { checkUserAccess, type UserAccess } from "#lib/users.ts";
 import { randomInt, stripDeviceSuffix } from "#lib/utils.ts";
 import createWASocket, { downloadMediaMessage, type AnyMessageContent } from "baileys";
 import mime from "mime-types";
@@ -27,6 +27,15 @@ function mediaMetaOf(content: Record<string, any> | null | undefined): { mimeTyp
 	if (content?.audioMessage) return { mimeType: content.audioMessage.mimetype };
 	return {};
 }
+
+const accessMessages: Record<UserAccess, string | undefined> = {
+	unregistered:
+		"Kamu tidak terdaftar atau tidak diizinkan menggunakan aplikasi ini. \n" +
+		"Gunakan perintah `!register` untuk mendaftarkan akun kamu.",
+	disabled: "Akun kamu sedang di-nonaktifkan.",
+	unapproved: "Akun kamu belum disetujui oleh pemilik. Silakan tunggu persetujuan.",
+	ok: undefined,
+};
 
 function pluginResultToMessage(result: BotPluginResult): AnyMessageContent {
 	switch (result.type) {
@@ -155,11 +164,9 @@ async function startBot() {
 			const plugin = plugins.find((p) => p.command == cmd);
 
 			try {
-				if (senderId !== ownerId && !isUserEnabled(senderId)) {
-					throw new Error(
-						"Kamu tidak terdaftar atau tidak diizinkan menggunakan aplikasi ini. \n" +
-							"Gunakan perintah `!register` untuk mendaftarkan akun kamu.",
-					);
+				if (senderId !== ownerId && cmd !== "!register") {
+					const msg = accessMessages[checkUserAccess(senderId)];
+					if (msg) throw new Error(msg);
 				}
 
 				if (!plugin) {
@@ -251,7 +258,7 @@ async function startBot() {
 				console.error(`Error "${cmd}":`, error);
 				await waSocket.sendMessage(
 					targetJid,
-					{ text: `😵 ${error?.message || "Unknown error"}` },
+					{ text: `⚠️ Perintah Gagal: ${error?.message || "Unknown error"}` },
 					{ quoted: msg },
 				);
 			} finally {

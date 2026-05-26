@@ -30,7 +30,7 @@ const insertStmt = db.prepare("INSERT INTO users (pnJid, lidJid, pushName, usern
 const deleteStmt = db.prepare("DELETE FROM users WHERE id = ?");
 const setEnabledStmt = db.prepare("UPDATE users SET enabled = ? WHERE id = ?");
 const selectAllStmt = db.prepare("SELECT * FROM users ORDER BY id");
-const selectByLidStmt = db.prepare("SELECT enabled FROM users WHERE lidJid = ?");
+const selectByLidStmt = db.prepare("SELECT enabled, approved_at FROM users WHERE lidJid = ?");
 const approveStmt = db.prepare("UPDATE users SET approved_at = datetime('now') WHERE id = ?");
 
 export function addUser(pnJid: string, lidJid: string, pushName?: string | null, username?: string | null) {
@@ -72,7 +72,12 @@ export function listUsers(): UserRow[] {
 	return selectAllStmt.all() as UserRow[];
 }
 
-export function isUserEnabled(lidJid: string): boolean {
-	const row = selectByLidStmt.get(lidJid) as { enabled: number } | undefined;
-	return row ? row.enabled === 1 : false;
+export type UserAccess = "ok" | "unregistered" | "disabled" | "unapproved";
+
+export function checkUserAccess(lidJid: string): UserAccess {
+	const row = selectByLidStmt.get(lidJid) as { enabled: number; approved_at: string | null } | undefined;
+	if (!row) return "unregistered";
+	if (row.enabled !== 1) return "disabled";
+	if (!row.approved_at) return "unapproved";
+	return "ok";
 }

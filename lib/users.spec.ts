@@ -68,30 +68,21 @@ describe("users", () => {
 		assert.throws(() => mod.addUser("6284444444444@s.whatsapp.net", "6281111111111:0@lid"), /UNIQUE/);
 	});
 
-	it("isUserEnabled returns true for newly added user", () => {
-		mod.addUser("6283333333333@s.whatsapp.net", "6283333333333:0@lid");
-		assert.equal(mod.isUserEnabled("6283333333333:0@lid"), true);
-	});
-
-	it("isUserEnabled returns false for unknown lidJid", () => {
-		assert.equal(mod.isUserEnabled("unknown:0@lid"), false);
-	});
-
 	it("disableUser sets enabled to 0", () => {
 		mod.addUser("6284444444444@s.whatsapp.net", "6284444444444:0@lid");
 		const users = mod.listUsers();
 		const u = users.find((x) => x.lidJid === "6284444444444:0@lid")!;
 		mod.disableUser(u.id);
-		assert.equal(mod.isUserEnabled("6284444444444:0@lid"), false);
+		assert.equal(mod.checkUserAccess("6284444444444:0@lid"), "disabled");
 	});
 
-	it("enableUser re-enables a disabled user", () => {
+	it("enableUser clears disabled status (approval still required)", () => {
 		mod.addUser("6285555555555@s.whatsapp.net", "6285555555555:0@lid");
 		const users = mod.listUsers();
 		const u = users.find((x) => x.lidJid === "6285555555555:0@lid")!;
 		mod.disableUser(u.id);
 		mod.enableUser(u.id);
-		assert.equal(mod.isUserEnabled("6285555555555:0@lid"), true);
+		assert.equal(mod.checkUserAccess("6285555555555:0@lid"), "unapproved");
 	});
 
 	it("removeUser by id deletes user", () => {
@@ -99,7 +90,7 @@ describe("users", () => {
 		const users = mod.listUsers();
 		const u = users.find((x) => x.lidJid === "6286666666666:0@lid")!;
 		mod.removeUser(u.id);
-		assert.equal(mod.isUserEnabled("6286666666666:0@lid"), false);
+		assert.equal(mod.checkUserAccess("6286666666666:0@lid"), "unregistered");
 	});
 
 	it("removeUser throws for invalid id", () => {
@@ -138,5 +129,30 @@ describe("users", () => {
 
 	it("disableUser throws for invalid id", () => {
 		assert.throws(() => mod.disableUser(-5), /Invalid user id/);
+	});
+
+	describe("checkUserAccess", () => {
+		it("returns unregistered for unknown lidJid", () => {
+			assert.equal(mod.checkUserAccess("unknown:0@lid"), "unregistered");
+		});
+
+		it("returns unapproved for newly registered user", () => {
+			mod.addUser("6281111111117@s.whatsapp.net", "6281111111117:0@lid");
+			assert.equal(mod.checkUserAccess("6281111111117:0@lid"), "unapproved");
+		});
+
+		it("returns ok for approved user", () => {
+			mod.addUser("6281111111118@s.whatsapp.net", "6281111111118:0@lid");
+			const u = mod.listUsers().find((x) => x.lidJid === "6281111111118:0@lid")!;
+			mod.approveUser(u.id);
+			assert.equal(mod.checkUserAccess("6281111111118:0@lid"), "ok");
+		});
+
+		it("returns disabled for disabled user", () => {
+			mod.addUser("6281111111119@s.whatsapp.net", "6281111111119:0@lid");
+			const u = mod.listUsers().find((x) => x.lidJid === "6281111111119:0@lid")!;
+			mod.disableUser(u.id);
+			assert.equal(mod.checkUserAccess("6281111111119:0@lid"), "disabled");
+		});
 	});
 });
