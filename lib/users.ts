@@ -3,10 +3,13 @@ import type { SQLOutputValue } from "node:sqlite";
 
 export interface UserRow extends Record<string, SQLOutputValue> {
 	id: number;
-	phone: string;
+	pnJid: string;
+	lidJid: string;
+	pushName: string | null;
+	username: string | null;
+	approved_at: string | null;
 	enabled: number;
 	created_at: string;
-	name: string | null;
 }
 
 const db = await useSqlite("users");
@@ -14,52 +17,62 @@ const db = await useSqlite("users");
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  phone TEXT UNIQUE NOT NULL,
+  pnJid TEXT NOT NULL,
+  lidJid TEXT UNIQUE NOT NULL,
+  pushName TEXT,
+  username TEXT,
+  approved_at TEXT,
   enabled INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  name TEXT
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`);
 
-const insertStmt = db.prepare("INSERT INTO users (phone, name) VALUES (?, ?)");
-const deleteStmt = db.prepare("DELETE FROM users WHERE id = ? OR phone = ?");
-const setEnabledStmt = db.prepare("UPDATE users SET enabled = ? WHERE id = ? OR phone = ?");
+const insertStmt = db.prepare("INSERT INTO users (pnJid, lidJid, pushName, username) VALUES (?, ?, ?, ?)");
+const deleteStmt = db.prepare("DELETE FROM users WHERE id = ?");
+const setEnabledStmt = db.prepare("UPDATE users SET enabled = ? WHERE id = ?");
 const selectAllStmt = db.prepare("SELECT * FROM users ORDER BY id");
-const selectByPhoneStmt = db.prepare("SELECT enabled FROM users WHERE phone = ?");
-const updateNameStmt = db.prepare("UPDATE users SET name = ? WHERE phone = ? AND name IS NULL");
+const selectByLidStmt = db.prepare("SELECT enabled FROM users WHERE lidJid = ?");
+const approveStmt = db.prepare("UPDATE users SET approved_at = datetime('now') WHERE id = ?");
 
-export function addUser(phone: string, name?: string) {
-	insertStmt.run(phone, name ?? null);
+export function addUser(pnJid: string, lidJid: string, pushName?: string | null, username?: string | null) {
+	if (!pnJid || !lidJid) {
+		throw new Error("pnJid and lidJid are required");
+	}
+	insertStmt.run(pnJid, lidJid, pushName ?? null, username ?? null);
 }
 
-export function removeUser(idOrPhone: string) {
-	const id = Number(idOrPhone);
-	deleteStmt.run(Number.isNaN(id) ? -1 : id, idOrPhone);
+export function removeUser(id: number) {
+	if (!Number.isFinite(id) || id < 1) {
+		throw new Error("Invalid user id");
+	}
+	deleteStmt.run(id);
 }
 
-export function enableUser(idOrPhone: string) {
-	const id = Number(idOrPhone);
-	setEnabledStmt.run(1, Number.isNaN(id) ? -1 : id, idOrPhone);
+export function enableUser(id: number) {
+	if (!Number.isFinite(id) || id < 1) {
+		throw new Error("Invalid user id");
+	}
+	setEnabledStmt.run(1, id);
 }
 
-export function disableUser(idOrPhone: string) {
-	const id = Number(idOrPhone);
-	setEnabledStmt.run(0, Number.isNaN(id) ? -1 : id, idOrPhone);
+export function disableUser(id: number) {
+	if (!Number.isFinite(id) || id < 1) {
+		throw new Error("Invalid user id");
+	}
+	setEnabledStmt.run(0, id);
+}
+
+export function approveUser(id: number) {
+	if (!Number.isFinite(id) || id < 1) {
+		throw new Error("Invalid user id");
+	}
+	approveStmt.run(id);
 }
 
 export function listUsers(): UserRow[] {
 	return selectAllStmt.all() as UserRow[];
 }
 
-export function isUserEnabled(phone: string): boolean {
-	const row = selectByPhoneStmt.get(phone) as { enabled: number } | undefined;
+export function isUserEnabled(lidJid: string): boolean {
+	const row = selectByLidStmt.get(lidJid) as { enabled: number } | undefined;
 	return row ? row.enabled === 1 : false;
-}
-
-export function tryUpdateUserName(phone: string, name?: string | null) {
-	if (name == null) return;
-	try {
-		updateNameStmt.run(name, phone);
-	} catch {
-		/* optional — ignore failures */
-	}
 }

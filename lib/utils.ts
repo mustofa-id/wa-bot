@@ -328,6 +328,11 @@ export function phoneFromJid(jid: string): string {
 	return jid.split(":")[0].split("@")[0];
 }
 
+/** Strip device suffix (`:N`) from a JID. Returns bare `user@domain`. */
+export function stripDeviceSuffix(jid: string): string {
+	return jid.replace(/:\d+@/, "@");
+}
+
 /** Normalize phone input to WhatsApp format: no +, no leading 0, no non-digits. */
 export function normalizePhone(input: string): string {
 	return input.replace(/^\+/, "").replace(/^0+/, "").replace(/\D/g, "");

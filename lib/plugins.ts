@@ -1,6 +1,6 @@
 import { useSQLiteAuthState } from "#lib/auth.ts";
-import { addUser, disableUser, enableUser, listUsers, removeUser } from "#lib/users.ts";
-import { normalizePhone, phoneFromJid } from "#lib/utils.ts";
+import { addUser, approveUser, disableUser, enableUser, listUsers, removeUser } from "#lib/users.ts";
+import { stripDeviceSuffix } from "#lib/utils.ts";
 import { glob } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import pkg from "../package.json" with { type: "json" };
@@ -28,37 +28,74 @@ function helpPlugin(modules: BotPlugin[]): BotPlugin {
 	};
 }
 
+function registerPlugin(): BotPlugin {
+	return {
+		command: "!register",
+		description: "Mendaftarkan diri untuk menggunakan aplikasi",
+		async run({ user }) {
+			if (!user.pnJid || !user.lidJid) {
+				return {
+					type: "text",
+					text: "Tidak dapat mendaftar: data pengguna tidak lengkap.",
+					quoted: true,
+				};
+			}
+
+			try {
+				addUser(user.pnJid, user.lidJid, user.pushName, user.username);
+				return {
+					type: "text",
+					text: "Pendaftaran berhasil. Silakan tunggu persetujuan dari pemilik.",
+					quoted: true,
+				};
+			} catch (e: any) {
+				if (e.message?.includes("UNIQUE constraint failed")) {
+					return {
+						type: "text",
+						text: "Kamu sudah terdaftar.",
+						quoted: true,
+					};
+				}
+				return {
+					type: "text",
+					text: `Gagal mendaftar: ${e.message}`,
+					quoted: true,
+				};
+			}
+		},
+	};
+}
+
 function usersPlugin(): BotPlugin {
 	return {
 		command: "!users",
-		description: "Mengelola pengguna. Sub-perintah: `add`, `ls`, `rm`, `on`, `off`",
+		description: "Mengelola pengguna. Sub-perintah: `approve`, `ls`, `rm`, `on`, `off`",
 		async run({ args, user }) {
 			const { state } = await useSQLiteAuthState();
-			const ownerPhone = phoneFromJid(state.creds.me?.id ?? "");
-			const senderPhone = phoneFromJid(user.pnJid ?? user.id);
+			const ownerId = stripDeviceSuffix(state.creds.me?.lid ?? "");
+			const senderId = stripDeviceSuffix(user.lidJid);
 
 			let message: string;
 
-			if (senderPhone !== ownerPhone) {
+			if (senderId !== ownerId) {
 				message = "Hanya pemilik yang dapat menggunakan perintah ini";
 			} else {
 				const [sub, ...rest] = args;
 				switch (sub) {
-					case "add": {
+					case "approve": {
 						const raw = rest[0];
-						const name = rest.slice(1).join(" ") || undefined;
 						if (!raw) {
-							message = "Usage: !users add <phone> [name]";
+							message = "Usage: !users approve <id>";
 						} else {
-							const phone = normalizePhone(raw);
-							if (!phone || phone.length < 8) {
-								message = "Nomor telepon tidak valid";
+							const id = Number(raw);
+							if (!Number.isFinite(id) || id < 1) {
+								message = "ID tidak valid";
 							} else {
 								try {
-									addUser(phone, name);
-									message = `Pengguna ${phone}${name ? ` (${name})` : ""} berhasil ditambahkan`;
+									approveUser(id);
+									message = `Pengguna #${id} telah disetujui`;
 								} catch (e: any) {
-									message = `Gagal menambahkan: ${e.message}`;
+									message = `Gagal menyetujui: ${e.message}`;
 								}
 							}
 						}
@@ -70,44 +107,61 @@ function usersPlugin(): BotPlugin {
 						if (!users.length) {
 							message = "Belum ada pengguna terdaftar";
 						} else {
-							const lines = users.map(
-								(u) =>
-									`- #${u.id} ${u.phone}${u.name ? ` (${u.name})` : ""} [${u.enabled ? "aktif" : "nonaktif"}]`,
-							);
+							const lines = users.map((u) => {
+								const name = u.pushName ? ` (${u.pushName})` : "";
+								const status = u.enabled ? "aktif" : "nonaktif";
+								const approved = u.approved_at ? "✅" : "❌";
+								return `- #${u.id} ${u.pnJid}${name} [${status}] ${approved}`;
+							});
 							message = `*Pengguna Terdaftar:*\n${lines.join("\n")}`;
 						}
 						break;
 					}
 
 					case "rm": {
-						const target = rest[0];
-						if (!target) {
-							message = "Usage: !users rm <phone_number|id>";
+						const raw = rest[0];
+						if (!raw) {
+							message = "Usage: !users rm <id>";
 						} else {
-							removeUser(target);
-							message = `Pengguna ${target} berhasil dihapus`;
+							const id = Number(raw);
+							if (!Number.isFinite(id) || id < 1) {
+								message = "ID tidak valid";
+							} else {
+								removeUser(id);
+								message = `Pengguna #${id} berhasil dihapus`;
+							}
 						}
 						break;
 					}
 
 					case "on": {
-						const target = rest[0];
-						if (!target) {
-							message = "Usage: !users on <phone_number|id>";
+						const raw = rest[0];
+						if (!raw) {
+							message = "Usage: !users on <id>";
 						} else {
-							enableUser(target);
-							message = `Pengguna ${target} telah diaktifkan`;
+							const id = Number(raw);
+							if (!Number.isFinite(id) || id < 1) {
+								message = "ID tidak valid";
+							} else {
+								enableUser(id);
+								message = `Pengguna #${id} telah diaktifkan`;
+							}
 						}
 						break;
 					}
 
 					case "off": {
-						const target = rest[0];
-						if (!target) {
-							message = "Usage: !users off <phone_number|id>";
+						const raw = rest[0];
+						if (!raw) {
+							message = "Usage: !users off <id>";
 						} else {
-							disableUser(target);
-							message = `Pengguna ${target} telah di-nonaktifkan`;
+							const id = Number(raw);
+							if (!Number.isFinite(id) || id < 1) {
+								message = "ID tidak valid";
+							} else {
+								disableUser(id);
+								message = `Pengguna #${id} telah di-nonaktifkan`;
+							}
 						}
 						break;
 					}
@@ -115,11 +169,11 @@ function usersPlugin(): BotPlugin {
 					default:
 						message =
 							`Sub-perintah tidak dikenali. Gunakan:\n` +
-							`- !users add <phone>\n` +
+							`- !users approve <id>\n` +
 							`- !users ls\n` +
-							`- !users rm <phone|id>\n` +
-							`- !users on <phone|id>\n` +
-							`- !users off <phone|id>`;
+							`- !users rm <id>\n` +
+							`- !users on <id>\n` +
+							`- !users off <id>`;
 				}
 			}
 
@@ -140,6 +194,7 @@ export async function getAllPlugins() {
 		}),
 	);
 
+	modules.push(registerPlugin());
 	modules.push(usersPlugin());
 	modules.push(helpPlugin(modules));
 

@@ -8,6 +8,7 @@ import {
 	phoneFromJid,
 	randomInt,
 	soffice,
+	stripDeviceSuffix,
 	ytdlp,
 } from "#lib/utils.ts";
 import assert from "node:assert/strict";
@@ -127,6 +128,28 @@ describe("phoneFromJid", () => {
 
 	it("handles plain phone number without domain", () => {
 		assert.equal(phoneFromJid("6281234567890"), "6281234567890");
+	});
+});
+
+describe("stripDeviceSuffix", () => {
+	it("strips device suffix from LID JID", () => {
+		assert.equal(stripDeviceSuffix("112312541271212:69@lid"), "112312541271212@lid");
+	});
+
+	it("strips device suffix from phone JID", () => {
+		assert.equal(stripDeviceSuffix("6281234567890:27@s.whatsapp.net"), "6281234567890@s.whatsapp.net");
+	});
+
+	it("passes through JID without device suffix", () => {
+		assert.equal(stripDeviceSuffix("112312541271212@lid"), "112312541271212@lid");
+	});
+
+	it("passes through group JID", () => {
+		assert.equal(stripDeviceSuffix("1234567890@g.us"), "1234567890@g.us");
+	});
+
+	it("returns empty string for empty input", () => {
+		assert.equal(stripDeviceSuffix(""), "");
 	});
 });
 

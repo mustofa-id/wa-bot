@@ -31,11 +31,11 @@ type BotPluginRun = (context: {
 
 interface BotUser {
 	/** LID JID = lid-based identity */
-	id: string;
+	lidJid: string;
 	/** PN JID = phone-number JID */
 	pnJid: string;
 	username?: string;
-	fullName?: string | null;
+	pushName?: string | null;
 }
 
 interface BotPlugin {

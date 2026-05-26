@@ -32,7 +32,7 @@ describe("getAllPlugins", () => {
 			try {
 				const result = await plugin.run({
 					args: [],
-					user: { id: "test" },
+					user: { lidJid: "test" },
 				});
 
 				if (!result) continue;

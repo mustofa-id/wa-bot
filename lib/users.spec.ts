@@ -22,112 +22,121 @@ describe("users", () => {
 	});
 
 	afterEach(() => {
-		// remove all users after each test
 		for (const u of mod.listUsers()) {
-			mod.removeUser(String(u.id));
+			mod.removeUser(u.id);
 		}
 	});
 
 	it("addUser inserts a user", () => {
-		mod.addUser("6281111111111", "Alice");
+		mod.addUser("6281111111111@s.whatsapp.net", "6281111111111:0@lid", "Alice");
 		const users = mod.listUsers();
-		const alice = users.find((u) => u.phone === "6281111111111");
+		const alice = users.find((u) => u.lidJid === "6281111111111:0@lid");
 		assert.ok(alice);
-		assert.equal(alice.name, "Alice");
+		assert.equal(alice.pushName, "Alice");
+		assert.equal(alice.pnJid, "6281111111111@s.whatsapp.net");
 		assert.equal(alice.enabled, 1);
 	});
 
-	it("addUser with optional name works", () => {
-		mod.addUser("6282222222222");
+	it("addUser with optional pushName and username works", () => {
+		mod.addUser("6282222222222@s.whatsapp.net", "6282222222222:0@lid");
 		const users = mod.listUsers();
-		const u = users.find((u) => u.phone === "6282222222222");
+		const u = users.find((u) => u.lidJid === "6282222222222:0@lid");
 		assert.ok(u);
-		assert.equal(u.name, null);
+		assert.equal(u.pushName, null);
+		assert.equal(u.username, null);
+	});
+
+	it("addUser stores username when provided", () => {
+		mod.addUser("6283333333333@s.whatsapp.net", "6283333333333:0@lid", "Bob", "bob_user");
+		const users = mod.listUsers();
+		const u = users.find((u) => u.lidJid === "6283333333333:0@lid");
+		assert.ok(u);
+		assert.equal(u.pushName, "Bob");
+		assert.equal(u.username, "bob_user");
+	});
+
+	it("addUser throws when pnJid is empty", () => {
+		assert.throws(() => mod.addUser("", "lid:0@lid"), /pnJid and lidJid are required/);
+	});
+
+	it("addUser throws when lidJid is empty", () => {
+		assert.throws(() => mod.addUser("pn@s.whatsapp.net", ""), /pnJid and lidJid are required/);
+	});
+
+	it("addUser enforces unique lidJid", () => {
+		mod.addUser("6281111111111@s.whatsapp.net", "6281111111111:0@lid");
+		assert.throws(() => mod.addUser("6284444444444@s.whatsapp.net", "6281111111111:0@lid"), /UNIQUE/);
 	});
 
 	it("isUserEnabled returns true for newly added user", () => {
-		mod.addUser("6283333333333");
-		assert.equal(mod.isUserEnabled("6283333333333"), true);
+		mod.addUser("6283333333333@s.whatsapp.net", "6283333333333:0@lid");
+		assert.equal(mod.isUserEnabled("6283333333333:0@lid"), true);
 	});
 
-	it("isUserEnabled returns false for unknown phone", () => {
-		assert.equal(mod.isUserEnabled("6289999999999"), false);
+	it("isUserEnabled returns false for unknown lidJid", () => {
+		assert.equal(mod.isUserEnabled("unknown:0@lid"), false);
 	});
 
 	it("disableUser sets enabled to 0", () => {
-		mod.addUser("6284444444444");
-		mod.disableUser("6284444444444");
-		assert.equal(mod.isUserEnabled("6284444444444"), false);
+		mod.addUser("6284444444444@s.whatsapp.net", "6284444444444:0@lid");
+		const users = mod.listUsers();
+		const u = users.find((x) => x.lidJid === "6284444444444:0@lid")!;
+		mod.disableUser(u.id);
+		assert.equal(mod.isUserEnabled("6284444444444:0@lid"), false);
 	});
 
 	it("enableUser re-enables a disabled user", () => {
-		mod.addUser("6285555555555");
-		mod.disableUser("6285555555555");
-		mod.enableUser("6285555555555");
-		assert.equal(mod.isUserEnabled("6285555555555"), true);
-	});
-
-	it("removeUser by phone deletes user", () => {
-		mod.addUser("6286666666666");
-		mod.removeUser("6286666666666");
-		assert.equal(mod.isUserEnabled("6286666666666"), false);
+		mod.addUser("6285555555555@s.whatsapp.net", "6285555555555:0@lid");
+		const users = mod.listUsers();
+		const u = users.find((x) => x.lidJid === "6285555555555:0@lid")!;
+		mod.disableUser(u.id);
+		mod.enableUser(u.id);
+		assert.equal(mod.isUserEnabled("6285555555555:0@lid"), true);
 	});
 
 	it("removeUser by id deletes user", () => {
-		mod.addUser("6287777777777");
+		mod.addUser("6286666666666@s.whatsapp.net", "6286666666666:0@lid");
 		const users = mod.listUsers();
-		const u = users.find((u) => u.phone === "6287777777777");
-		assert.ok(u);
-		mod.removeUser(String(u.id));
-		assert.equal(mod.isUserEnabled("6287777777777"), false);
+		const u = users.find((x) => x.lidJid === "6286666666666:0@lid")!;
+		mod.removeUser(u.id);
+		assert.equal(mod.isUserEnabled("6286666666666:0@lid"), false);
+	});
+
+	it("removeUser throws for invalid id", () => {
+		assert.throws(() => mod.removeUser(-1), /Invalid user id/);
+		assert.throws(() => mod.removeUser(0), /Invalid user id/);
 	});
 
 	it("listUsers returns all users ordered by id", () => {
-		mod.addUser("6288888888881", "Z");
-		mod.addUser("6288888888882", "A");
+		mod.addUser("6288888888881@s.whatsapp.net", "6288888888881:0@lid", "Z");
+		mod.addUser("6288888888882@s.whatsapp.net", "6288888888882:0@lid", "A");
 		const users = mod.listUsers();
-		const z = users.find((u) => u.phone === "6288888888881");
-		const a = users.find((u) => u.phone === "6288888888882");
+		const z = users.find((u) => u.lidJid === "6288888888881:0@lid");
+		const a = users.find((u) => u.lidJid === "6288888888882:0@lid");
 		assert.ok(z);
 		assert.ok(a);
-		assert.ok(z.id < a.id);
+		assert.ok(z!.id < a!.id);
 	});
 
-	it("tryUpdateUserName sets name when name is null", () => {
-		mod.addUser("6281234500001");
-		mod.tryUpdateUserName("6281234500001", "Updated");
-		const users = mod.listUsers();
-		const u = users.find((u) => u.phone === "6281234500001");
-		assert.equal(u?.name, "Updated");
+	it("approveUser sets approved_at", () => {
+		mod.addUser("6289999999991@s.whatsapp.net", "6289999999991:0@lid");
+		const before = mod.listUsers().find((u) => u.lidJid === "6289999999991:0@lid")!;
+		assert.equal(before.approved_at, null);
+
+		mod.approveUser(before.id);
+		const after = mod.listUsers().find((u) => u.lidJid === "6289999999991:0@lid")!;
+		assert.ok(after.approved_at);
 	});
 
-	it("tryUpdateUserName does not overwrite existing name", () => {
-		mod.addUser("6281234500002", "Original");
-		mod.tryUpdateUserName("6281234500002", "Overwrite");
-		const users = mod.listUsers();
-		const u = users.find((u) => u.phone === "6281234500002");
-		assert.equal(u?.name, "Original");
+	it("approveUser throws for invalid id", () => {
+		assert.throws(() => mod.approveUser(-1), /Invalid user id/);
 	});
 
-	it("tryUpdateUserName ignores null name", () => {
-		mod.addUser("6281234500003", "Keep");
-		mod.tryUpdateUserName("6281234500003", null);
-		const users = mod.listUsers();
-		const u = users.find((u) => u.phone === "6281234500003");
-		assert.equal(u?.name, "Keep");
+	it("enableUser throws for invalid id", () => {
+		assert.throws(() => mod.enableUser(0), /Invalid user id/);
 	});
 
-	it("isUserEnabled returns true for existing user", () => {
-		mod.addUser("6281234500004");
-		assert.ok(mod.isUserEnabled("6281234500004"));
-	});
-
-	it("disableUser by id works", () => {
-		mod.addUser("6281234500005");
-		const users = mod.listUsers();
-		const u = users.find((u) => u.phone === "6281234500005");
-		assert.ok(u);
-		mod.disableUser(String(u.id));
-		assert.equal(mod.isUserEnabled("6281234500005"), false);
+	it("disableUser throws for invalid id", () => {
+		assert.throws(() => mod.disableUser(-5), /Invalid user id/);
 	});
 });

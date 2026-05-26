@@ -1,8 +1,8 @@
 import { useSQLiteAuthState } from "#lib/auth.ts";
 import { ConversationManager, isPrompt } from "#lib/conversation.ts";
 import { getAllPlugins } from "#lib/plugins.ts";
-import { isUserEnabled, tryUpdateUserName } from "#lib/users.ts";
-import { phoneFromJid, randomInt } from "#lib/utils.ts";
+import { isUserEnabled } from "#lib/users.ts";
+import { randomInt, stripDeviceSuffix } from "#lib/utils.ts";
 import createWASocket, { downloadMediaMessage, type AnyMessageContent } from "baileys";
 import mime from "mime-types";
 import { basename } from "node:path";
@@ -118,26 +118,25 @@ async function startBot() {
 			const isGroup = msg.key.remoteJid?.trim()?.endsWith("@g.us") || false;
 
 			const user: BotUser = {
-				id: isGroup ? msg.key.participant! : msg.key.remoteJid!,
+				lidJid: isGroup ? msg.key.participant! : msg.key.remoteJid!,
 				pnJid: isGroup ? msg.key.participantAlt! : msg.key.remoteJidAlt!,
 				username: isGroup ? msg.key.participantUsername : msg.key.remoteJidUsername,
-				fullName: msg.pushName,
+				pushName: msg.pushName,
 			};
 
 			const targetJid = msg.key.remoteJid!; // correct for user or group
 
-			const text =
+			const text = (
 				msg.message?.conversation ||
 				msg.message?.extendedTextMessage?.text ||
 				msg.message?.imageMessage?.caption ||
 				msg.message?.videoMessage?.caption ||
-				msg.message?.documentMessage?.caption;
+				msg.message?.documentMessage?.caption
+			)?.trim();
 
-			console.log(`[${new Date().toLocaleString()}] 💬 ${user.pnJid} (${user.fullName || "<no name>"}): ${text}`);
+			console.log(`[${new Date().toLocaleString()}] 💬`, { user, text });
 
 			if (!text) continue;
-
-			const trimmed = text.trim();
 
 			try {
 				await waSocket.readMessages([msg.key]);
@@ -145,28 +144,26 @@ async function startBot() {
 			} catch {}
 			await setTimeout(randomInt(2_000, 4_000));
 
-			if (conversationManager.resolve(user.id, trimmed)) continue;
-			if (!trimmed.startsWith("!")) continue;
+			if (conversationManager.resolve(user.lidJid, text)) continue;
+			if (!text.startsWith("!")) continue;
 
-			const ownerPhone = phoneFromJid(state.creds.me?.id ?? "");
-			const senderPhone = phoneFromJid(user.pnJid ?? user.id);
+			const ownerId = stripDeviceSuffix(state.creds.me?.lid ?? "");
+			const senderId = stripDeviceSuffix(user.lidJid);
 
-			const [cmd, ...args] = trimmed.split(/\s+/);
+			const [cmd, ...args] = text.split(/\s+/);
 			const plugin = plugins.find((p) => p.command == cmd);
 
 			try {
-				if (senderPhone !== ownerPhone && !isUserEnabled(senderPhone)) {
+				if (senderId !== ownerId && !isUserEnabled(senderId)) {
 					throw new Error("Kamu tidak terdaftar atau tidak diizinkan menggunakan aplikasi ini.");
 				}
-
-				tryUpdateUserName(senderPhone, user.fullName);
 
 				if (!plugin) {
 					throw new Error(`Perintah \`${cmd}\` tidak dikenali`);
 				}
 
 				if (
-					(plugin.queue === "user" && userQueues.has(user.id)) ||
+					(plugin.queue === "user" && userQueues.has(user.lidJid)) ||
 					(plugin.queue === "global" && globalQueue !== null)
 				) {
 					await waSocket.sendMessage(
@@ -219,7 +216,7 @@ async function startBot() {
 								});
 
 								if (isPrompt(value)) {
-									const reply = await conversationManager.waitForMessage(user.id);
+									const reply = await conversationManager.waitForMessage(user.lidJid);
 									iterResult = await iter.next(reply);
 								} else {
 									iterResult = await iter.next();
@@ -231,13 +228,13 @@ async function startBot() {
 							});
 						}
 					} finally {
-						conversationManager.cleanup(user.id);
+						conversationManager.cleanup(user.lidJid);
 					}
 				};
 
 				switch (plugin.queue) {
 					case "user":
-						await enqueue(user.id, execute);
+						await enqueue(user.lidJid, execute);
 						break;
 					case "global":
 						await enqueue("__global__", execute);
