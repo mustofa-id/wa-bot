@@ -184,15 +184,15 @@ async function startBot() {
 					);
 				}
 
+				const msgContent = msg.message;
+				const quotedContent = msgContent?.extendedTextMessage?.contextInfo?.quotedMessage;
+
+				const mediaContent = mediaTypeOf(msgContent) ? msgContent : quotedContent;
+				const hasOwnMedia = !!mediaTypeOf(msgContent);
+				const attachmentType = mediaContent ? mediaTypeOf(mediaContent) : undefined;
+
 				const execute = async () => {
 					try {
-						const msgContent = msg.message;
-						const quotedContent = msgContent?.extendedTextMessage?.contextInfo?.quotedMessage;
-
-						const mediaContent = mediaTypeOf(msgContent) ? msgContent : quotedContent;
-						const hasOwnMedia = !!mediaTypeOf(msgContent);
-						const attachmentType = mediaContent ? mediaTypeOf(mediaContent) : undefined;
-
 						const getAttachment: GetAttachment = async () => {
 							if (!mediaContent) throw new Error("Tidak ada lampiran media");
 
@@ -254,11 +254,12 @@ async function startBot() {
 						await execute();
 						break;
 				}
-			} catch (error: any) {
+			} catch (error: unknown) {
 				console.error(`Error "${cmd}":`, error);
+				const msgFmt = error instanceof Error ? error.message.split("\n").join("\n> ") : "Unknown error";
 				await waSocket.sendMessage(
 					targetJid,
-					{ text: `⚠️ Perintah Gagal: ${error?.message || "Unknown error"}` },
+					{ text: `⚠️ Perintah Gagal Dijalankan \n\n> ${msgFmt}` },
 					{ quoted: msg },
 				);
 			} finally {

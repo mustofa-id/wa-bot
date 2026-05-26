@@ -92,15 +92,12 @@ export async function ffmpeg(
 	console.log(`running ffmpeg in "${mode}":`, spawnCmd, spawnArgs);
 
 	await new Promise<void>((resolve, reject) => {
-		const proc = spawn(spawnCmd, spawnArgs, { stdio: "inherit" });
-		let errorOutput = "unknown";
-		proc.stderr?.on("message", (data) => (errorOutput += data.toString()));
+		const proc = spawn(spawnCmd, spawnArgs);
+		let stderr = "";
+		proc.stderr.on("data", (d) => (stderr += d.toString()));
 		proc.on("close", (code) => {
 			if (code === 0) resolve();
-			else {
-				console.error("ffmpeg error:", errorOutput);
-				reject(new Error(`ffmpeg exited with code ${code}`));
-			}
+			else reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-500)}`));
 		});
 		proc.on("error", reject);
 	});
@@ -124,13 +121,17 @@ export async function ffprobe(
 
 	return await new Promise<string>((resolve, reject) => {
 		let stdout = "";
+		let stderr = "";
 		const proc = spawn(cmd, args);
 		proc.stdout.on("data", (d) => {
 			stdout += d.toString();
 		});
+		proc.stderr.on("data", (d) => {
+			stderr += d.toString();
+		});
 		proc.on("close", (code) => {
 			if (code === 0) resolve(stdout.trim());
-			else reject(new Error(`ffprobe exited with code ${code}`));
+			else reject(new Error(`ffprobe exited with code ${code}: ${stderr.slice(-500)}`));
 		});
 		proc.on("error", reject);
 	});
@@ -153,8 +154,12 @@ export async function ytdlp(
 	return await new Promise<string[]>((resolve, reject) => {
 		const proc = spawn(cmd, allArgs);
 		let stdout = "";
+		let stderr = "";
 		proc.stdout?.on("data", (d) => {
 			stdout += d.toString();
+		});
+		proc.stderr?.on("data", (d) => {
+			stderr += d.toString();
 		});
 		proc.on("close", (code) => {
 			if (code === 0) {
@@ -164,7 +169,7 @@ export async function ytdlp(
 					.filter(Boolean);
 				resolve(paths);
 			} else {
-				reject(new Error(`yt-dlp exited with code ${code}`));
+				reject(new Error(`yt-dlp exited with code ${code}: ${stderr.slice(-500)}`));
 			}
 		});
 		proc.on("error", reject);
@@ -214,9 +219,13 @@ export async function ghostScript(
 
 	await new Promise<void>((resolve, reject) => {
 		const proc = spawn(cmd, gsArgs);
+		let stderr = "";
+		proc.stderr.on("data", (d) => {
+			stderr += d.toString();
+		});
 		proc.on("close", (code) => {
 			if (code === 0) resolve();
-			else reject(new Error(`gs exited with code ${code}`));
+			else reject(new Error(`gs exited with code ${code}: ${stderr.slice(-500)}`));
 		});
 		proc.on("error", reject);
 	});
@@ -240,9 +249,13 @@ export async function soffice(
 
 	await new Promise<void>((resolve, reject) => {
 		const proc = spawn(cmd, args);
+		let stderr = "";
+		proc.stderr.on("data", (d) => {
+			stderr += d.toString();
+		});
 		proc.on("close", (code) => {
 			if (code === 0) resolve();
-			else reject(new Error(`soffice exited with code ${code}`));
+			else reject(new Error(`soffice exited with code ${code}: ${stderr.slice(-500)}`));
 		});
 		proc.on("error", reject);
 	});
