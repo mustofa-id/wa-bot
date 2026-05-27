@@ -69,7 +69,7 @@
 - `BotHook` in `lib/types.d.ts` is an **unimplemented TODO**
 - Error messages are in Indonesian (no i18n yet)
 - Plugin temp files cleaned with `cleanUp()` after 3.5s delay (fire-and-forget, errors logged to console.warn)
-- Error responses always prefixed with `😵`
+- Error responses always prefixed with `⚠️`
 - Custom cSpell dictionary at `./spelling.dic` — wired in `.vscode/settings.json`
 - `/data` and `*.db` are gitignored; SQLite WAL artifacts (`*.db-wal`, `*.db-shm`) covered by `/data` gitignore rule
 - No database migrations

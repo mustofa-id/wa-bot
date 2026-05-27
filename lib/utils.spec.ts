@@ -235,37 +235,18 @@ describe("ffmpeg", () => {
 		if (tempDir) await rm(tempDir, { recursive: true, force: true });
 	});
 
-	it("runs with balance mode and returns output path", async () => {
+	it("runs and returns output path", async () => {
 		if (!available) return;
 		const result = await ffmpeg(inputPath, {
-			mode: "balance",
 			args: ["-vf", "scale=5:5"],
 		});
 		assert.equal(result, join(tempDir, "input_processed.png"));
 		await access(result, constants.F_OK);
 	});
 
-	it("runs with gentle mode", async () => {
-		if (!available) return;
-		const result = await ffmpeg(inputPath, {
-			mode: "gentle",
-			args: ["-vf", "scale=5:5"],
-		});
-		await access(result, constants.F_OK);
-	});
-
-	it("runs with performance mode", async () => {
-		if (!available) return;
-		const result = await ffmpeg(inputPath, {
-			mode: "performance",
-			args: ["-vf", "scale=5:5"],
-		});
-		await access(result, constants.F_OK);
-	});
-
 	it("rejects on invalid input path", async () => {
 		if (!available) return;
-		await assert.rejects(ffmpeg("/nonexistent/file.mp4", { mode: "balance", args: [] }));
+		await assert.rejects(ffmpeg("/nonexistent/file.mp4", { args: [] }));
 	});
 });
 

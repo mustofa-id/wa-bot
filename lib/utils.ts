@@ -7,37 +7,9 @@ import { basename, dirname, extname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { setTimeout } from "node:timers/promises";
 
-const ffmpegModeConfigs = {
-	gentle: {
-		threads: "2",
-		preset: "veryfast",
-		bufsize: "1M",
-		maxMuxingQueueSize: "1024",
-		realtime: true,
-		nice: 19,
-	},
-	balance: {
-		threads: "4",
-		preset: "faster",
-		bufsize: "4M",
-		maxMuxingQueueSize: "2048",
-		realtime: false,
-		nice: null,
-	},
-	performance: {
-		threads: "0",
-		preset: "ultrafast",
-		bufsize: "8M",
-		maxMuxingQueueSize: "4096",
-		realtime: false,
-		nice: null,
-	},
-} as const;
-
 export async function ffmpeg(
 	inputPath: string,
 	options: {
-		mode?: keyof typeof ffmpegModeConfigs;
 		args: string[];
 		outputPath?: string;
 		preInputArgs?: string[];
@@ -47,25 +19,6 @@ export async function ffmpeg(
 	const base = basename(inputPath, ext);
 	const dir = dirname(inputPath);
 	const outputPath = options.outputPath ?? join(dir, `${base}_processed${ext}`);
-	const rawMode = options.mode || process.env.FFMPEG_MODE || "balance";
-	const mode = rawMode in ffmpegModeConfigs ? (rawMode as keyof typeof ffmpegModeConfigs) : "balance";
-	const config = ffmpegModeConfigs[mode];
-
-	const modeFlags = [
-		"-threads",
-		config.threads,
-		"-preset",
-		config.preset,
-		"-bufsize",
-		config.bufsize,
-		"-max_muxing_queue_size",
-		config.maxMuxingQueueSize,
-	];
-
-	const effectivePreInputArgs = [...(options.preInputArgs ?? [])];
-	if (config.realtime) {
-		effectivePreInputArgs.unshift("-re");
-	}
 
 	const isWin = process.platform === "win32";
 	const cmd = isWin ? "ffmpeg.exe" : "ffmpeg";
@@ -73,28 +26,16 @@ export async function ffmpeg(
 		"-y",
 		"-hide_banner",
 		["-loglevel", "error"],
-		...effectivePreInputArgs,
+		...(options.preInputArgs ?? []),
 		["-i", inputPath],
-		...modeFlags,
 		...options.args,
 		outputPath,
 	].flat();
 
-	let spawnCmd: string;
-	let spawnArgs: string[];
-
-	if (!isWin && config.nice !== null) {
-		spawnCmd = "nice";
-		spawnArgs = ["-n", String(config.nice), cmd, ...ffmpegArgs];
-	} else {
-		spawnCmd = cmd;
-		spawnArgs = ffmpegArgs;
-	}
-
-	console.log(`running ffmpeg in "${mode}":`, spawnCmd, spawnArgs);
+	console.log("running ffmpeg:", cmd, ffmpegArgs);
 
 	await new Promise<void>((resolve, reject) => {
-		const proc = spawn(spawnCmd, spawnArgs);
+		const proc = spawn(cmd, ffmpegArgs);
 		let stderr = "";
 		proc.stderr.on("data", (d) => (stderr += d.toString()));
 		proc.on("close", (code) => {

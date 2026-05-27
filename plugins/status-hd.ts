@@ -6,21 +6,36 @@ import { join } from "node:path";
 // actually each video status is 90s length, but this is just for anticipate.
 const MAX_VIDEO_DURATION = 89;
 
-const videoConfig = [
-	["-movflags", "+faststart"],
-	["-vf", "scale=1080:-2:flags=lanczos,fps=30"],
-	["-r", "30"],
-	["-c:v", "libx264"],
-	["-profile:v", "high"],
-	["-level", "4.1"],
-	["-pix_fmt", "yuv420p"],
-	["-crf", "20"],
-	["-maxrate", "6M"],
-	["-c:a", "aac"],
-	["-b:a", "128k"],
-	["-ar", "48000"],
-	["-ac", "2"],
-].flat();
+const ffmpegModeConfigs = {
+	gentle: { threads: "2", preset: "veryfast", bufsize: "1M", maxMuxingQueueSize: "1024" },
+	balance: { threads: "4", preset: "faster", bufsize: "4M", maxMuxingQueueSize: "2048" },
+	performance: { threads: "0", preset: "ultrafast", bufsize: "8M", maxMuxingQueueSize: "4096" },
+} as const;
+
+function getVideoConfig(): string[] {
+	const rawMode = process.env.FFMPEG_MODE || "balance";
+	const mode = rawMode in ffmpegModeConfigs ? (rawMode as keyof typeof ffmpegModeConfigs) : "balance";
+	const c = ffmpegModeConfigs[mode];
+	return [
+		"-movflags", "+faststart",
+		"-vf", "scale=1080:-2:flags=lanczos,fps=30",
+		"-r", "30",
+		"-c:v", "libx264",
+		"-profile:v", "high",
+		"-level", "4.1",
+		"-pix_fmt", "yuv420p",
+		"-crf", "20",
+		"-maxrate", "6M",
+		"-c:a", "aac",
+		"-b:a", "128k",
+		"-ar", "48000",
+		"-ac", "2",
+		"-threads", c.threads,
+		"-preset", c.preset,
+		"-bufsize", c.bufsize,
+		"-max_muxing_queue_size", c.maxMuxingQueueSize,
+	];
+}
 
 const imageConfig = [
 	["-frames:v", "1"],
@@ -104,7 +119,7 @@ export default {
 
 		try {
 			const outputPath = await ffmpeg(inputPath, {
-				args: isVideo ? videoConfig : imageConfig,
+				args: isVideo ? getVideoConfig() : imageConfig,
 			});
 			cleanupPaths.push(outputPath);
 
