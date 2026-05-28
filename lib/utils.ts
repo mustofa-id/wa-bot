@@ -1,16 +1,33 @@
 import { spawn } from "node:child_process";
 import { constants } from "node:fs";
-import { access, chmod, mkdir, readdir, rm } from "node:fs/promises";
+import { access, mkdir, rm } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { setTimeout } from "node:timers/promises";
 
+type RunArgs = (string | string[])[];
+
+export function run(cmd: string, args: RunArgs): Promise<{ stdout: string; stderr: string }> {
+	return new Promise((resolve, reject) => {
+		const proc = spawn(cmd, args.flat());
+		let stdout = "";
+		let stderr = "";
+		proc.stdout?.on("data", (d) => (stdout += d.toString()));
+		proc.stderr?.on("data", (d) => (stderr += d.toString()));
+		proc.on("close", (code) => {
+			if (code === 0) resolve({ stdout, stderr });
+			else reject(new Error(`"${cmd}" exited with code ${code}: ${stderr.slice(-500)}`));
+		});
+		proc.on("error", reject);
+	});
+}
+
 export async function ffmpeg(
 	inputPath: string,
 	options: {
-		args: string[];
+		args: RunArgs;
+		preInputArgs?: RunArgs;
 		outputPath?: string;
-		preInputArgs?: string[];
 	},
 ): Promise<string> {
 	const ext = extname(inputPath);
@@ -18,9 +35,8 @@ export async function ffmpeg(
 	const dir = dirname(inputPath);
 	const outputPath = options.outputPath ?? join(dir, `${base}_processed${ext}`);
 
-	const isWin = process.platform === "win32";
-	const cmd = isWin ? "ffmpeg.exe" : "ffmpeg";
-	const ffmpegArgs = [
+	const cmd = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+	const args = [
 		"-y",
 		"-hide_banner",
 		["-loglevel", "error"],
@@ -28,21 +44,10 @@ export async function ffmpeg(
 		["-i", inputPath],
 		...options.args,
 		outputPath,
-	].flat();
+	];
 
-	console.log("running ffmpeg:", cmd, ffmpegArgs);
-
-	await new Promise<void>((resolve, reject) => {
-		const proc = spawn(cmd, ffmpegArgs);
-		let stderr = "";
-		proc.stderr.on("data", (d) => (stderr += d.toString()));
-		proc.on("close", (code) => {
-			if (code === 0) resolve();
-			else reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-500)}`));
-		});
-		proc.on("error", reject);
-	});
-
+	console.log("running ffmpeg:", cmd, args);
+	await run(cmd, args);
 	return outputPath;
 }
 
@@ -53,29 +58,12 @@ export async function ffmpeg(
 export async function ffprobe(
 	inputPath: string,
 	options: {
-		args: string[];
+		args: RunArgs;
 	},
 ): Promise<string> {
-	const isWin = process.platform === "win32";
-	const cmd = isWin ? "ffprobe.exe" : "ffprobe";
-	const args = [...options.args, inputPath];
-
-	return await new Promise<string>((resolve, reject) => {
-		let stdout = "";
-		let stderr = "";
-		const proc = spawn(cmd, args);
-		proc.stdout.on("data", (d) => {
-			stdout += d.toString();
-		});
-		proc.stderr.on("data", (d) => {
-			stderr += d.toString();
-		});
-		proc.on("close", (code) => {
-			if (code === 0) resolve(stdout.trim());
-			else reject(new Error(`ffprobe exited with code ${code}: ${stderr.slice(-500)}`));
-		});
-		proc.on("error", reject);
-	});
+	const cmd = process.platform === "win32" ? "ffprobe.exe" : "ffprobe";
+	const { stdout } = await run(cmd, [...options.args, inputPath]);
+	return stdout.trim();
 }
 
 /**
@@ -85,36 +73,15 @@ export async function ffprobe(
 export async function ytdlp(
 	url: string,
 	options: {
-		args: string[];
+		args: RunArgs;
 	},
 ): Promise<string[]> {
-	const isWin = process.platform === "win32";
-	const cmd = isWin ? "yt-dlp.exe" : "yt-dlp";
-	const allArgs = [...options.args, "--print", "after_move:filepath", url];
-
-	return await new Promise<string[]>((resolve, reject) => {
-		const proc = spawn(cmd, allArgs);
-		let stdout = "";
-		let stderr = "";
-		proc.stdout?.on("data", (d) => {
-			stdout += d.toString();
-		});
-		proc.stderr?.on("data", (d) => {
-			stderr += d.toString();
-		});
-		proc.on("close", (code) => {
-			if (code === 0) {
-				const paths = stdout
-					.split("\n")
-					.map((l) => l.trim())
-					.filter(Boolean);
-				resolve(paths);
-			} else {
-				reject(new Error(`yt-dlp exited with code ${code}: ${stderr.slice(-500)}`));
-			}
-		});
-		proc.on("error", reject);
-	});
+	const cmd = process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp";
+	const { stdout } = await run(cmd, [...options.args, "--print", "after_move:filepath", url]);
+	return stdout
+		.split("\n")
+		.map((l) => l.trim())
+		.filter(Boolean);
 }
 
 /**
@@ -141,13 +108,12 @@ export async function cleanUp(...paths: (string | null | undefined)[]): Promise<
 export async function ghostScript(
 	inputPath: string,
 	options: {
-		args: string[];
+		args: RunArgs;
 		outputPath: string;
 	},
 ): Promise<string> {
-	const isWin = process.platform === "win32";
-	const cmd = isWin ? "gswin64c.exe" : "gs";
-	const gsArgs = [
+	const cmd = process.platform === "win32" ? "gswin64c.exe" : "gs";
+	const args = [
 		"-dNOPAUSE",
 		"-dBATCH",
 		"-dQUIET",
@@ -158,19 +124,7 @@ export async function ghostScript(
 		inputPath,
 	];
 
-	await new Promise<void>((resolve, reject) => {
-		const proc = spawn(cmd, gsArgs);
-		let stderr = "";
-		proc.stderr.on("data", (d) => {
-			stderr += d.toString();
-		});
-		proc.on("close", (code) => {
-			if (code === 0) resolve();
-			else reject(new Error(`gs exited with code ${code}: ${stderr.slice(-500)}`));
-		});
-		proc.on("error", reject);
-	});
-
+	await run(cmd, args);
 	return options.outputPath;
 }
 
@@ -188,19 +142,7 @@ export async function convertDocx(
 	const base = basename(inputPath, ext);
 	const outputPath = join(options.outDir, `${base}.docx`);
 
-	await new Promise<void>((resolve, reject) => {
-		const proc = spawn("pdf2docx", ["convert", inputPath, outputPath]);
-		let stderr = "";
-		proc.stderr.on("data", (d) => {
-			stderr += d.toString();
-		});
-		proc.on("close", (code) => {
-			if (code === 0) resolve();
-			else reject(new Error(`pdf2docx exited with code ${code}: ${stderr.slice(-500)}`));
-		});
-		proc.on("error", reject);
-	});
-
+	await run("pdf2docx", ["convert", inputPath, outputPath]);
 	return outputPath;
 }
 

@@ -1,5 +1,6 @@
 import {
 	cleanUp,
+	convertDocx,
 	ffmpeg,
 	ffprobe,
 	getDataDir,
@@ -7,7 +8,7 @@ import {
 	normalizePhone,
 	phoneFromJid,
 	randomInt,
-	convertDocx,
+	run,
 	stripDeviceSuffix,
 	ytdlp,
 } from "#lib/utils.ts";
@@ -412,5 +413,27 @@ describe("convertDocx", () => {
 				outDir: tempDir,
 			}),
 		);
+	});
+});
+
+describe("run", () => {
+	it("returns stdout from a successful command", async () => {
+		const { stdout } = await run("node", ["-e", "process.stdout.write('hello')"]);
+		assert.equal(stdout, "hello");
+	});
+
+	it("returns stderr from a command", async () => {
+		const { stderr } = await run("node", ["-e", "process.stderr.write('err msg')"]);
+		assert.equal(stderr, "err msg");
+	});
+
+	it("rejects on non-zero exit code", async () => {
+		await assert.rejects(run("node", ["-e", "process.exit(1)"]), {
+			message: /"node" exited with code 1/,
+		});
+	});
+
+	it("rejects on non-existent command", async () => {
+		await assert.rejects(run("this-command-does-not-exist-hopefully", []));
 	});
 });

@@ -31,7 +31,7 @@
 
 ## Conventions
 
-- **Named parameters for multi-arg functions**: If a function takes more than one parameter, use an object/options parameter instead of positional args. See `lib/utils.ts` (`ffmpeg`, `ghostScript`, `soffice`, etc.) for the pattern.
+- **Named parameters for multi-arg functions**: If a function takes more than one parameter, use an object/options parameter instead of positional args. See `lib/utils.ts` (`ffmpeg`, `ghostScript`, `convertDocx`, etc.) for the pattern.
 
 ## Architecture
 
@@ -54,7 +54,7 @@
 
 - Node built-in `node:test` + `node:assert` (no Jest/Vitest)
 - Test files alongside source: `*.spec.ts`
-- `lib/utils.spec.ts` conditionally skips ffmpeg/ffprobe/yt-dlp tests if binary unavailable
+- `lib/utils.spec.ts` conditionally skips ffmpeg/ffprobe/yt-dlp/pdf2docx/gs tests if binary unavailable
 
 ## Deployment
 

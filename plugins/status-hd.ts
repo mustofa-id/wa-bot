@@ -12,28 +12,28 @@ const ffmpegModeConfigs = {
 	performance: { threads: "0", preset: "ultrafast", bufsize: "8M", maxMuxingQueueSize: "4096" },
 } as const;
 
-function getVideoConfig(): string[] {
+function getVideoConfig() {
 	const rawMode = process.env.FFMPEG_MODE || "balance";
 	const mode = rawMode in ffmpegModeConfigs ? (rawMode as keyof typeof ffmpegModeConfigs) : "balance";
 	const c = ffmpegModeConfigs[mode];
 	return [
-		"-movflags", "+faststart",
-		"-vf", "scale=1080:-2:flags=lanczos,fps=30",
-		"-r", "30",
-		"-c:v", "libx264",
-		"-profile:v", "high",
-		"-level", "4.1",
-		"-pix_fmt", "yuv420p",
-		"-crf", "20",
-		"-maxrate", "6M",
-		"-c:a", "aac",
-		"-b:a", "128k",
-		"-ar", "48000",
-		"-ac", "2",
-		"-threads", c.threads,
-		"-preset", c.preset,
-		"-bufsize", c.bufsize,
-		"-max_muxing_queue_size", c.maxMuxingQueueSize,
+		["-movflags", "+faststart"],
+		["-vf", "scale=1080:-2:flags=lanczos,fps=30"],
+		["-r", "30"],
+		["-c:v", "libx264"],
+		["-profile:v", "high"],
+		["-level", "4.1"],
+		["-pix_fmt", "yuv420p"],
+		["-crf", "20"],
+		["-maxrate", "6M"],
+		["-c:a", "aac"],
+		["-b:a", "128k"],
+		["-ar", "48000"],
+		["-ac", "2"],
+		["-threads", c.threads],
+		["-preset", c.preset],
+		["-bufsize", c.bufsize],
+		["-max_muxing_queue_size", c.maxMuxingQueueSize],
 	];
 }
 
@@ -42,7 +42,7 @@ const imageConfig = [
 	["-vf", `scale=2560:-2:flags=lanczos`],
 	["-q:v", "2"],
 	["-map_metadata", "-1"],
-].flat();
+];
 
 async function getVideoDuration(filePath: string): Promise<number> {
 	const output = await ffprobe(filePath, {
