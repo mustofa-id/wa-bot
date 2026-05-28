@@ -1,5 +1,6 @@
 AUTOINCREMENT
 autoremove
+chrono
 creds
 esac
 faststart
@@ -18,6 +19,7 @@ NOPAUSE
 noprint
 PDFSETTINGS
 pdfwrite
+pengingat
 qrcode
 soffice
 ultrafast

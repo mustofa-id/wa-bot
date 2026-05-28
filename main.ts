@@ -2,6 +2,7 @@ import { useSQLiteAuthState } from "#lib/auth.ts";
 import { ConversationManager, isPrompt } from "#lib/conversation.ts";
 import { getAllPlugins } from "#lib/plugins.ts";
 import { checkUserAccess, type UserAccess } from "#lib/users.ts";
+import { startScheduler } from "#lib/scheduler.ts";
 import { randomInt, stripDeviceSuffix } from "#lib/utils.ts";
 import createWASocket, { downloadMediaMessage, type AnyMessageContent, type WAMessage } from "baileys";
 import mime from "mime-types";
@@ -111,6 +112,8 @@ async function startBot() {
 
 	const cm = new ConversationManager();
 	const ws = createWASocket({ auth: state });
+
+	startScheduler(ws);
 
 	function buildBotAttachment(msg: WAMessage): BotAttachment | undefined {
 		const { type, mimeType, fileName } = getAttachmentMeta(msg);

@@ -5,7 +5,7 @@
 - **Node ≥22** required — uses `node:sqlite`, `node:test`, `fs.glob`, `Array.fromAsync`, `--watch`, `--env-file`
 - **pnpm@11.2.2** (via corepack) — `pnpm-workspace.yaml` allows native builds for `baileys`, `protobufjs`, `sharp`
 - **TypeScript** executed natively (no build step) — `tsconfig.json` has `allowImportingTsExtensions`, `emitDeclarationOnly`, `checkJs: true`
-- **Prettier** only — tabs, 4-space tab width, semicolons, 120 print width. Run `pnpm format`.
+- **Prettier** only — tabs, 4-space tab width, semicolons, 120 print width. Run `pnpm format` after source changes.
 
 ## Commands
 
@@ -44,9 +44,11 @@
 - **Interactive plugins**: `yield prompt({ type: "text", text: "?" })` waits for user text reply — evaluates to the reply string. Non-`!` messages from a user with a pending `prompt()` route to resolve it. In-memory sessions with 5 min inactivity timeout.
 - **Queues**: `queue: "user"` serializes per-user; `queue: "global"` serializes all. Users notified while queued.
 - **Auth**: SQLite-backed (`data/auth.db`) via `lib/auth.ts` using `node:sqlite`. Owner resolved from `state.creds.me?.lid` (stripped of device suffix via `stripDeviceSuffix()`).
-- **Users**: SQLite-backed (`data/users.db`) via `lib/users.ts`. Owner-only commands (`!users approve|ls|rm|on|off`). Owner bypasses user check (always permitted even if not in users table).
+- **Users**: SQLite-backed (`data/users.db`) via `lib/users.ts`. Owner-only commands (`!users add|approve|ls|rm|on|off`). `checkUserAccess(user: BotUser)` matches by lidJid first, then falls back to pnJid (updating lidJid on match). Owner bypasses user check. `addUserByPhone(phone)` auto-approves and assigns `PEND#<uuid>` lidJid.
 - **User identity**: `BotUser.lidJid` = LID-based JID, `BotUser.pnJid` = phone-number JID, `BotUser.pushName` = `msg.pushName`.
-- **Media attachment**: `attachment.get()` downloads to Buffer. Falls back to quoted message if the command message has no media. `type` reflects whichever source has media.
+- **Media attachment**: `attachment` from the message's own media only (no fallback). Quoted message media available via `quoted.attachment`.
+- **Scheduler**: `lib/scheduler.ts` exports `registerTask({ name, intervalMs, tick })` and `startScheduler(ws)`. Tasks self-register at module load; `main.ts` calls `startScheduler(ws)` once after socket creation. Used by `plugins/reminder.ts` for periodic polling.
+- **Reminders**: `plugins/reminder.ts` — `!reminder <waktu> [tanggal]`. Text from quoted message or prompt. Time parsing uses `chrono-node` with Indonesian word normalization. SQLite-backed, survives restarts.
 - **Auto-reconnect**: On connection close, bot waits 5s and restarts unless statusCode 401 (logout).
 - **System deps (per-plugin)**: ffmpeg+ffprobe, ghostscript, yt-dlp, pdf2docx. Wrappers in `lib/utils.ts`.
 
