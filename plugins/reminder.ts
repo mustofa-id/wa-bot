@@ -114,6 +114,7 @@ function parseDateTime(input: string): Date | null {
 const plugin: BotPlugin = {
 	command: "!reminder",
 	description: "Membuat pengingat. Gunakan: `!reminder <waktu> [tanggal]`",
+	queue: "user",
 	async *run({ args, user, quoted }) {
 		const reminderText = quoted?.text || (yield prompt({ type: "text", text: "Apa yang ingin diingatkan?" }));
 
