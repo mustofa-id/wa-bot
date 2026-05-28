@@ -34,6 +34,9 @@ const selectByLidStmt = db.prepare("SELECT * FROM users WHERE lidJid = ?");
 const selectByPnJidStmt = db.prepare("SELECT * FROM users WHERE pnJid = ?");
 const updateByPnJidStmt = db.prepare("UPDATE users SET lidJid = ?, pushName = ?, username = ? WHERE pnJid = ?");
 const approveStmt = db.prepare("UPDATE users SET approved_at = datetime('now') WHERE id = ?");
+const insertByPnStmt = db.prepare(
+	"INSERT INTO users (pnJid, lidJid, approved_at) VALUES (?, ?, datetime('now')) returning *",
+);
 
 export function addUser(pnJid: string, lidJid: string, pushName?: string | null, username?: string | null) {
 	if (!pnJid || !lidJid) {
@@ -98,10 +101,6 @@ export function checkUserAccess(user: BotUser): UserAccess {
 export function addUserByPhone(phone: string): UserRow {
 	const pnJid = `${phone}@s.whatsapp.net`;
 	const lidJid = `PEND#${crypto.randomUUID()}`;
-
-	insertStmt.run(pnJid, lidJid, null, null);
-	const row = selectByPnJidStmt.get(pnJid) as UserRow;
-	approveStmt.run(row.id);
-	setEnabledStmt.run(1, row.id);
-	return selectByPnJidStmt.get(pnJid) as UserRow;
+	const row = insertByPnStmt.get(pnJid, lidJid);
+	return row as UserRow;
 }
