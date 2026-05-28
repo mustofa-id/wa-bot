@@ -257,6 +257,12 @@ async function startBot() {
 									iterResult = await iter.next();
 								}
 							}
+
+							if (iterResult.value) {
+								await ws.sendMessage(targetJid, pluginResultToMessage(iterResult.value), {
+									quoted: iterResult.value.quoted ? msg : undefined,
+								});
+							}
 						} else if (result) {
 							await ws.sendMessage(targetJid, pluginResultToMessage(result as BotPluginResult), {
 								quoted: (result as BotPluginResult).quoted ? msg : undefined,
