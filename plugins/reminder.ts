@@ -38,7 +38,7 @@ registerTask({
 			try {
 				await sendMessage(r.jid, {
 					type: "text",
-					text: `⏰ *Pengingat! (${r.remind_at})* \n${"-".repeat(16)} \n${r.text}`,
+					text: `⏰ *Pengingat!* \n> ${fmtDateString(r.remind_at)} \n${"─".repeat(16)} \n${r.text}`,
 				});
 				markDoneStmt.run(r.id);
 			} catch (e) {
@@ -49,7 +49,10 @@ registerTask({
 });
 
 function addReminder(jid: string, creatorJid: string, text: string, remindAt: Date): ReminderRow {
-	const remindAtStr = remindAt.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "");
+	const remindAtStr = remindAt
+		.toISOString()
+		.replace("T", " ")
+		.replace(/\.\d{3}Z$/, "");
 	const { lastInsertRowid } = insertStmt.run(jid, creatorJid, text, remindAtStr);
 	const row = db.prepare("SELECT * FROM reminders WHERE id = ?").get(Number(lastInsertRowid));
 	return row as ReminderRow;
@@ -61,6 +64,18 @@ function tz(): string {
 
 function getPart(parts: Intl.DateTimeFormatPart[], type: string, fallback = 0): number {
 	return parseInt(parts.find((p) => p.type === type)?.value ?? String(fallback));
+}
+
+function fmtDateString(date: Date | string, locales: Intl.LocalesArgument = "id-ID") {
+	return (typeof date === "string" ? new Date(date) : date).toLocaleString(locales, {
+		timeZone: tz(),
+		weekday: "long",
+		year: "numeric",
+		month: "long",
+		day: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
 }
 
 /** Convert a Date whose UTC components equal the wall-clock time in `tz` to real UTC. */
@@ -205,14 +220,14 @@ function parseDateTime(timeStr: string, dateStr?: string): Date | null {
 
 const plugin: BotPlugin = {
 	command: "!reminder",
-	description: "Membuat pengingat dari quoted atau prompt. Gunakan: `!reminder <waktu> [tanggal]`",
+	description: "Membuat pengingat dari quoted atau prompt. Gunakan: `!reminder <jam> [tanggal]`",
 	queue: "user",
 	async *run({ args, user, quoted }) {
 		const timeStr = args[0];
 		const dateStr = args[1];
 
 		if (!timeStr) {
-			throw new Error("Gunakan: `!reminder <waktu> [tanggal]`");
+			throw new Error("Gunakan: `!reminder <jam> [tanggal]`");
 		}
 
 		const remindAt = parseDateTime(timeStr, dateStr);
@@ -222,9 +237,9 @@ const plugin: BotPlugin = {
 				"Tidak dapat memahami format waktu.\n\n" +
 					"*Format Waktu 24 Jam (wajib):*\n" +
 					"- `HH:mm` — 14:30\n" +
-					"- `HH\u200B.mm` — 14\u200B.30\n" +
+					"- `HH.\u200Bmm` — 14.\u200B30\n" +
 					"- `HHmm` — 14\u200B30\n\n" +
-					"*Format Tanggal (opsional, default hari ini):*\n" +
+					"*Format Tanggal (opsional default hari ini):*\n" +
 					"- `YYYY-MM-DD` — 2026\u200B-05-28\n" +
 					"- `YYYY/MM/DD` — 2026\u200B/05/28\n" +
 					"- `YYYYMMDD` — 2026\u200B0528\n" +
@@ -248,16 +263,7 @@ const plugin: BotPlugin = {
 
 		addReminder(user.lidJid, user.lidJid, reminderText, remindAt);
 
-		const reminderDateTime = remindAt.toLocaleString("id-ID", {
-			timeZone: tz(),
-			weekday: "long",
-			year: "numeric",
-			month: "long",
-			day: "numeric",
-			hour: "2-digit",
-			minute: "2-digit",
-		});
-
+		const reminderDateTime = fmtDateString(remindAt);
 		return {
 			type: "text",
 			text: `Pengingat dibuat untuk: \n> ${reminderDateTime}`,
