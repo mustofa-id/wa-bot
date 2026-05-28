@@ -1,9 +1,9 @@
-import type { WASocket } from "baileys";
+type SendMessageFn = (targetJid: string, result: BotPluginResult) => MaybePromise<void>;
 
 interface ScheduledTask {
 	name: string;
 	intervalMs: number;
-	tick: (ws: WASocket) => Promise<void>;
+	tick: (sm: SendMessageFn) => MaybePromise<void>;
 }
 
 const tasks: ScheduledTask[] = [];
@@ -13,14 +13,15 @@ export function registerTask(task: ScheduledTask) {
 	tasks.push(task);
 }
 
-export function startScheduler(ws: WASocket): () => void {
+export function startScheduler(sm: SendMessageFn): () => void {
 	if (started) throw new Error("Scheduler already started");
 	started = true;
 
+	const snapshot = tasks.splice(0);
 	const intervals: ReturnType<typeof setInterval>[] = [];
 
-	for (const task of tasks) {
-		const run = () => task.tick(ws).catch((e) => console.error(`Scheduler[${task.name}]:`, e));
+	for (const task of snapshot) {
+		const run = () => Promise.resolve(task.tick(sm)).catch((e) => console.error(`Scheduler[${task.name}]:`, e));
 		run();
 		intervals.push(setInterval(run, task.intervalMs));
 	}

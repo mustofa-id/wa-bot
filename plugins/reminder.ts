@@ -32,13 +32,11 @@ const selectDueStmt = db.prepare("SELECT * FROM reminders WHERE done = 0 AND rem
 registerTask({
 	name: "reminders",
 	intervalMs: 15_000,
-	tick: async (ws) => {
+	tick: async (sm) => {
 		const due = selectDueStmt.all() as ReminderRow[];
 		for (const r of due) {
 			try {
-				await ws.sendMessage(r.jid, {
-					text: `⏰ *Pengingat!*\n${r.text}`,
-				});
+				await sm(r.jid, { type: "text", text: `⏰ *Pengingat!*\n${r.text}` });
 				markDoneStmt.run(r.id);
 			} catch (e) {
 				console.error("Failed to send reminder", r.id, e);

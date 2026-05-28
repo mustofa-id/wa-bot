@@ -113,7 +113,9 @@ async function startBot() {
 	const cm = new ConversationManager();
 	const ws = createWASocket({ auth: state });
 
-	startScheduler(ws);
+	startScheduler(async (jid, result) => {
+		await ws.sendMessage(jid, pluginResultToMessage(result));
+	});
 
 	function buildBotAttachment(msg: WAMessage): BotAttachment | undefined {
 		const { type, mimeType, fileName } = getAttachmentMeta(msg);
