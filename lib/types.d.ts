@@ -1,12 +1,13 @@
 type MaybePromise<T> = Promise<T> | T;
 
-type GetAttachment = () => Promise<{
-	buffer: Buffer;
-	mimeType?: string;
-	fileName?: string;
-}>;
-
-type BotAttachmentType = "document" | "image" | "video" | "audio" | "sticker";
+interface BotAttachment {
+	type: "document" | "image" | "video" | "audio" | "sticker";
+	get: () => Promise<{
+		buffer: Buffer;
+		mimeType?: string;
+		fileName?: string;
+	}>;
+}
 
 type BotPluginResult = (
 	| {
@@ -14,7 +15,7 @@ type BotPluginResult = (
 			text: string;
 	  }
 	| {
-			type: BotAttachmentType;
+			type: BotAttachment["type"];
 			filePath: string;
 			caption?: string;
 	  }
@@ -23,9 +24,10 @@ type BotPluginResult = (
 type BotPluginRun = (context: {
 	args: string[];
 	user: BotUser;
-	attachment?: {
-		type: BotAttachmentType;
-		get: GetAttachment;
+	attachment?: BotAttachment;
+	quoted?: {
+		text?: string;
+		attachment?: BotAttachment;
 	};
 }) => MaybePromise<BotPluginResult | AsyncGenerator<BotPluginResult>>;
 

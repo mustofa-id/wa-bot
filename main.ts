@@ -3,28 +3,53 @@ import { ConversationManager, isPrompt } from "#lib/conversation.ts";
 import { getAllPlugins } from "#lib/plugins.ts";
 import { checkUserAccess, type UserAccess } from "#lib/users.ts";
 import { randomInt, stripDeviceSuffix } from "#lib/utils.ts";
-import createWASocket, { downloadMediaMessage, type AnyMessageContent } from "baileys";
+import createWASocket, { downloadMediaMessage, type AnyMessageContent, type WAMessage } from "baileys";
 import mime from "mime-types";
 import { basename } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import qrcode from "qrcode";
 
-function mediaTypeOf(content: Record<string, any> | null | undefined): BotAttachmentType | undefined {
-	if (content?.documentMessage) return "document";
-	if (content?.videoMessage) return "video";
-	if (content?.imageMessage) return "image";
-	if (content?.audioMessage) return "audio";
-	if (content?.stickerMessage) return "sticker";
-	return undefined;
+function getMessageText(msg: WAMessage): string | undefined {
+	if (!msg) return undefined;
+	return (
+		msg.message?.conversation ||
+		msg.message?.extendedTextMessage?.text ||
+		msg.message?.imageMessage?.caption ||
+		msg.message?.videoMessage?.caption ||
+		msg.message?.documentMessage?.caption ||
+		undefined
+	)?.trim();
 }
 
-function mediaMetaOf(content: Record<string, any> | null | undefined): { mimeType?: string; fileName?: string } {
-	if (content?.documentMessage) {
-		return { mimeType: content.documentMessage.mimetype, fileName: content.documentMessage.fileName };
+function getAttachmentMeta(msg: WAMessage): { mimeType?: string; fileName?: string; type?: BotAttachment["type"] } {
+	if (msg.message?.documentMessage) {
+		return {
+			mimeType: msg.message?.documentMessage.mimetype || undefined,
+			fileName: msg.message?.documentMessage.fileName || undefined,
+			type: "document",
+		};
 	}
-	if (content?.videoMessage) return { mimeType: content.videoMessage.mimetype };
-	if (content?.imageMessage) return { mimeType: content.imageMessage.mimetype };
-	if (content?.audioMessage) return { mimeType: content.audioMessage.mimetype };
+	if (msg.message?.videoMessage)
+		return {
+			mimeType: msg.message.videoMessage.mimetype || undefined,
+			type: "video",
+		};
+	if (msg.message?.imageMessage)
+		return {
+			mimeType: msg.message.imageMessage.mimetype || undefined,
+			type: "image",
+		};
+	if (msg.message?.audioMessage)
+		return {
+			mimeType: msg.message.audioMessage.mimetype || undefined,
+			type: "audio",
+		};
+
+	if (msg.message?.stickerMessage)
+		return {
+			mimeType: msg.message.stickerMessage.mimetype || undefined,
+			type: "sticker",
+		};
 	return {};
 }
 
@@ -84,12 +109,32 @@ async function startBot() {
 		return next;
 	}
 
-	const conversationManager = new ConversationManager();
-	const waSocket = createWASocket({ auth: state });
+	const cm = new ConversationManager();
+	const ws = createWASocket({ auth: state });
 
-	waSocket.ev.on("creds.update", saveCreds);
+	function buildBotAttachment(msg: WAMessage): BotAttachment | undefined {
+		const { type, mimeType, fileName } = getAttachmentMeta(msg);
+		if (!type) return undefined;
+		return {
+			type: type,
+			get: async () => {
+				const buffer = (await downloadMediaMessage(
+					msg,
+					"buffer",
+					{},
+					{
+						reuploadRequest: ws.updateMediaMessage,
+						logger: ws.logger,
+					},
+				)) as Buffer;
+				return { buffer, mimeType, fileName };
+			},
+		};
+	}
 
-	waSocket.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
+	ws.ev.on("creds.update", saveCreds);
+
+	ws.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
 		if (connection === "close") {
 			const error = lastDisconnect?.error as any;
 			const statusCode = error?.output?.statusCode;
@@ -118,7 +163,7 @@ async function startBot() {
 		}
 	});
 
-	waSocket.ev.on("messages.upsert", async ({ messages, type }) => {
+	ws.ev.on("messages.upsert", async ({ messages, type }) => {
 		console.log(`messages.upsert: type=${type}, count=${messages.length}`);
 		if (type != "notify") return;
 
@@ -127,7 +172,6 @@ async function startBot() {
 			if (msg.broadcast) continue; // skip broadcast like contact Status update
 
 			const isGroup = msg.key.remoteJid?.trim()?.endsWith("@g.us") || false;
-
 			const user: BotUser = {
 				lidJid: isGroup ? msg.key.participant! : msg.key.remoteJid!,
 				pnJid: isGroup ? msg.key.participantAlt! : msg.key.remoteJidAlt!,
@@ -136,27 +180,19 @@ async function startBot() {
 			};
 
 			const targetJid = msg.key.remoteJid!; // correct for user or group
-
-			const text = (
-				msg.message?.conversation ||
-				msg.message?.extendedTextMessage?.text ||
-				msg.message?.imageMessage?.caption ||
-				msg.message?.videoMessage?.caption ||
-				msg.message?.documentMessage?.caption
-			)?.trim();
-
-			console.log(`[${new Date().toLocaleString()}] 💬`, { user, text });
-
+			const text = getMessageText(msg);
 			if (!text) continue;
 
+			console.log(`[${new Date().toLocaleString()}] ->`, { user, text });
+
+			if (cm.resolve(user.lidJid, text)) continue;
+			if (!text.startsWith("!")) continue;
+
 			try {
-				await waSocket.readMessages([msg.key]);
-				await waSocket.sendPresenceUpdate("composing", targetJid);
+				await ws.readMessages([msg.key]);
+				await ws.sendPresenceUpdate("composing", targetJid);
 			} catch {}
 			await setTimeout(randomInt(2_000, 4_000));
-
-			if (conversationManager.resolve(user.lidJid, text)) continue;
-			if (!text.startsWith("!")) continue;
 
 			const senderId = stripDeviceSuffix(user.lidJid);
 
@@ -177,69 +213,50 @@ async function startBot() {
 					(plugin.queue === "user" && userQueues.has(user.lidJid)) ||
 					(plugin.queue === "global" && globalQueue !== null)
 				) {
-					await waSocket.sendMessage(
+					await ws.sendMessage(
 						targetJid,
 						{ text: "Permintaan kamu sedang mengantre, mohon tunggu..." },
 						{ quoted: msg },
 					);
 				}
 
-				const msgContent = msg.message;
-				const quotedContent = msgContent?.extendedTextMessage?.contextInfo?.quotedMessage;
-
-				const mediaContent = mediaTypeOf(msgContent) ? msgContent : quotedContent;
-				const hasOwnMedia = !!mediaTypeOf(msgContent);
-				const attachmentType = mediaContent ? mediaTypeOf(mediaContent) : undefined;
+				const attachment = buildBotAttachment(msg);
+				const quotedContent = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+				const buildQuoted = () => {
+					if (!quotedContent) return;
+					const quotedMsg = { key: msg.key, message: quotedContent };
+					return {
+						text: getMessageText(quotedMsg),
+						attachment: buildBotAttachment(quotedMsg),
+					};
+				};
 
 				const execute = async () => {
 					try {
-						const getAttachment: GetAttachment = async () => {
-							if (!mediaContent) throw new Error("Tidak ada lampiran media");
-
-							const targetMsg = hasOwnMedia ? msg : { message: mediaContent };
-							const buffer = (await downloadMediaMessage(
-								targetMsg as any,
-								"buffer",
-								{},
-								{
-									reuploadRequest: waSocket.updateMediaMessage,
-									logger: waSocket.logger,
-								},
-							)) as Buffer;
-
-							const { mimeType, fileName } = mediaMetaOf(mediaContent);
-
-							return { buffer, mimeType, fileName };
-						};
-
-						const attachment =
-							attachmentType && mediaContent ? { type: attachmentType, get: getAttachment } : undefined;
-
-						const result = await plugin.run({ args, user, attachment });
-
+						const result = await plugin.run({ args, user, attachment, quoted: buildQuoted() });
 						if (result && Symbol.asyncIterator in (result as any)) {
 							const iter = result as AsyncGenerator<BotPluginResult>;
 							let iterResult = await iter.next();
 							while (!iterResult.done) {
 								const value = iterResult.value;
-								await waSocket.sendMessage(targetJid, pluginResultToMessage(value), {
+								await ws.sendMessage(targetJid, pluginResultToMessage(value), {
 									quoted: value.quoted ? msg : undefined,
 								});
 
 								if (isPrompt(value)) {
-									const reply = await conversationManager.waitForMessage(user.lidJid);
+									const reply = await cm.waitForMessage(user.lidJid);
 									iterResult = await iter.next(reply);
 								} else {
 									iterResult = await iter.next();
 								}
 							}
 						} else if (result) {
-							await waSocket.sendMessage(targetJid, pluginResultToMessage(result as BotPluginResult), {
+							await ws.sendMessage(targetJid, pluginResultToMessage(result as BotPluginResult), {
 								quoted: (result as BotPluginResult).quoted ? msg : undefined,
 							});
 						}
 					} finally {
-						conversationManager.cleanup(user.lidJid);
+						cm.cleanup(user.lidJid);
 					}
 				};
 
@@ -260,13 +277,13 @@ async function startBot() {
 					error instanceof Error
 						? error.message.trim().split("\n").filter(Boolean).join("\n> ")
 						: "Unknown error";
-				await waSocket.sendMessage(
+				await ws.sendMessage(
 					targetJid,
 					{ text: `⚠️ Perintah Gagal Dijalankan \n\n> ${msgFmt}` },
 					{ quoted: msg },
 				);
 			} finally {
-				await waSocket.sendPresenceUpdate("paused", targetJid);
+				await ws.sendPresenceUpdate("paused", targetJid);
 			}
 		}
 	});
