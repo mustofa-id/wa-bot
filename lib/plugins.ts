@@ -68,7 +68,7 @@ function registerPlugin(): BotPlugin {
 function usersPlugin(ownerId: string): BotPlugin {
 	return {
 		command: "!users",
-		description: "Mengelola pengguna. Sub-perintah: `approve`, `ls`, `rm`, `on`, `off`",
+		description: "Mengelola pengguna. Sub-perintah: `add`, `approve`, `ls`, `rm`, `on`, `off`",
 		async run({ args, user }) {
 			const senderId = stripDeviceSuffix(user.lidJid);
 

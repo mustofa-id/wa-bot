@@ -32,11 +32,8 @@ const setEnabledStmt = db.prepare("UPDATE users SET enabled = ? WHERE id = ?");
 const selectAllStmt = db.prepare("SELECT * FROM users ORDER BY id");
 const selectByLidStmt = db.prepare("SELECT * FROM users WHERE lidJid = ?");
 const selectByPnJidStmt = db.prepare("SELECT * FROM users WHERE pnJid = ?");
-const updateByPnJidStmt = db.prepare(
-	"UPDATE users SET lidJid = ?, pushName = ?, username = ? WHERE pnJid = ?",
-);
+const updateByPnJidStmt = db.prepare("UPDATE users SET lidJid = ?, pushName = ?, username = ? WHERE pnJid = ?");
 const approveStmt = db.prepare("UPDATE users SET approved_at = datetime('now') WHERE id = ?");
-const maxIdStmt = db.prepare("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM users");
 
 export function addUser(pnJid: string, lidJid: string, pushName?: string | null, username?: string | null) {
 	if (!pnJid || !lidJid) {
@@ -100,8 +97,7 @@ export function checkUserAccess(user: BotUser): UserAccess {
 
 export function addUserByPhone(phone: string): UserRow {
 	const pnJid = `${phone}@s.whatsapp.net`;
-	const { next_id } = maxIdStmt.get() as { next_id: number };
-	const lidJid = `PEND#${next_id}`;
+	const lidJid = `PEND#${crypto.randomUUID()}`;
 
 	insertStmt.run(pnJid, lidJid, null, null);
 	const row = selectByPnJidStmt.get(pnJid) as UserRow;

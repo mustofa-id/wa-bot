@@ -143,7 +143,7 @@ describe("users", () => {
 	it("addUserByPhone creates user with PEND# lidJid and auto-approves", () => {
 		const row = mod.addUserByPhone("6287777777777");
 		assert.equal(row.pnJid, "6287777777777@s.whatsapp.net");
-		assert.match(row.lidJid, /^PEND#\d+$/);
+		assert.match(row.lidJid, /^PEND#[\da-f-]+$/);
 		assert.equal(row.enabled, 1);
 		assert.ok(row.approved_at);
 	});
@@ -172,10 +172,7 @@ describe("users", () => {
 
 	describe("checkUserAccess", () => {
 		it("returns unregistered for unknown lidJid", () => {
-			assert.equal(
-				mod.checkUserAccess({ lidJid: "unknown:0@lid", pnJid: "" }),
-				"unregistered",
-			);
+			assert.equal(mod.checkUserAccess({ lidJid: "unknown:0@lid", pnJid: "" }), "unregistered");
 		});
 
 		it("returns unapproved for newly registered user", () => {

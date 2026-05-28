@@ -1,5 +1,4 @@
 import { cleanUp, convertDocx, getDataDir, ghostScript } from "#lib/utils.ts";
-import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -30,7 +29,7 @@ export default {
 		const workDir = join(dataDir.pathname, "pdf-tools");
 		await mkdir(workDir, { recursive: true });
 
-		const id = randomUUID();
+		const id = crypto.randomUUID();
 		const inputPath = join(workDir, `${id}_input.pdf`);
 		await writeFile(inputPath, buffer);
 

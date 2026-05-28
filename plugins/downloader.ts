@@ -1,5 +1,4 @@
 import { cleanUp, getDataDir, ytdlp } from "#lib/utils.ts";
-import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -23,7 +22,7 @@ export default {
 		const workDir = join(dataDir.pathname, "dl");
 		await mkdir(workDir, { recursive: true });
 
-		const id = randomUUID();
+		const id = crypto.randomUUID();
 		const outputPattern = join(workDir, `${id}_%(id)s.%(ext)s`);
 
 		const ytdlpArgs: string[] = [

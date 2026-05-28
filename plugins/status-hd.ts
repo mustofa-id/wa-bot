@@ -1,5 +1,4 @@
 import { cleanUp, ffmpeg, ffprobe, getDataDir } from "#lib/utils.ts";
-import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -110,7 +109,7 @@ export default {
 		const workDir = join(dataDir.pathname, "status-hd");
 		await mkdir(workDir, { recursive: true });
 
-		const id = randomUUID();
+		const id = crypto.randomUUID();
 		const ext = isVideo ? ".mp4" : ".jpg";
 		const inputPath = join(workDir, `${id}_input${ext}`);
 
