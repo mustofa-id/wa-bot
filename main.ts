@@ -1,8 +1,8 @@
 import { useSQLiteAuthState } from "#lib/auth.ts";
 import { ConversationManager, isPrompt } from "#lib/conversation.ts";
 import { getAllPlugins } from "#lib/plugins.ts";
-import { checkUserAccess, type UserAccess } from "#lib/users.ts";
 import { startScheduler } from "#lib/scheduler.ts";
+import { checkUserAccess, type UserAccess } from "#lib/users.ts";
 import { randomInt, stripDeviceSuffix } from "#lib/utils.ts";
 import createWASocket, { downloadMediaMessage, type AnyMessageContent, type WAMessage } from "baileys";
 import mime from "mime-types";
@@ -292,7 +292,7 @@ async function startBot() {
 						: "Unknown error";
 				await ws.sendMessage(
 					targetJid,
-					{ text: `⚠️ Perintah Gagal Dijalankan \n\n> ${msgFmt}` },
+					{ text: `⚠️ Gagal menjalankan perintah \n\n> ${msgFmt}` },
 					{ quoted: msg },
 				);
 			} finally {

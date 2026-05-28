@@ -177,24 +177,28 @@ const plugin: BotPlugin = {
 		const dateStr = args[1];
 
 		if (!timeStr) {
-			return {
-				type: "text",
-				text: "Gunakan: `!reminder <waktu> [tanggal]`",
-				quoted: true,
-			};
+			throw new Error("Gunakan: `!reminder <waktu> [tanggal]`");
 		}
 
 		const remindAt = parseDateTime(timeStr, dateStr);
 		if (!remindAt) {
-			return {
-				type: "text",
-				text:
-					"Tidak dapat memahami format waktu. Coba:\n" +
+			throw new Error(
+				"Tidak dapat memahami format waktu.\n\n" +
+					"*Waktu (wajib):*\n" +
+					"- `HH:mm` — 14:30\n" +
+					"- `HHmm` — 1430\n\n" +
+					"*Tanggal (opsional):*\n" +
+					"- `YYYY-MM-DD` — 2026-05-28\n" +
+					"- `YYYY/MM/DD` — 2026/05/28\n" +
+					"- `YYYYMMDD` — 20260528\n" +
+					"- `DD-MM-YYYY` — 28-05-2026\n" +
+					"- `DD/MM/YYYY` — 28/05/2026\n" +
+					"- `DDMMYYYY` — 28052026\n\n" +
+					"*Contoh:*\n" +
 					"- `!reminder 14:30`\n" +
 					"- `!reminder 14:30 2026-05-28`\n" +
 					"- `!reminder 1430 28052026`",
-				quoted: true,
-			};
+			);
 		}
 
 		const reminderText =
