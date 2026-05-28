@@ -98,6 +98,34 @@ function tz(): string {
 	return process.env.TZ || "Asia/Jakarta";
 }
 
+/** Convert a Date whose UTC components equal the wall-clock time in `tz` to real UTC. */
+function toUtc(date: Date, tz: string): Date {
+	const y = date.getUTCFullYear();
+	const M = date.getUTCMonth();
+	const d = date.getUTCDate();
+	const h = date.getUTCHours();
+	const m = date.getUTCMinutes();
+	const s = date.getUTCSeconds();
+
+	const wallClockMs = Date.UTC(y, M, d, h, m, s);
+
+	const tzDateStr = date.toLocaleString("en-CA", { timeZone: tz });
+	const tzTimeStr = date.toLocaleString("en-GB", {
+		timeZone: tz,
+		hour12: false,
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+	});
+	const [ty, tm, td] = tzDateStr.split("-").map(Number);
+	const [th, tmin, ts] = tzTimeStr.split(":").map(Number);
+	const tzWallClockMs = Date.UTC(ty, tm - 1, td, th, tmin, ts);
+
+	const tzOffsetMs = tzWallClockMs - date.getTime();
+
+	return new Date(wallClockMs - tzOffsetMs);
+}
+
 function parseDateTime(input: string): Date | null {
 	const text = input.trim();
 	if (!text) return null;
@@ -105,7 +133,10 @@ function parseDateTime(input: string): Date | null {
 	const now = new Date();
 	const ref: chrono.ParsingReference = { instant: now, timezone: tz() };
 
-	const check = (s: string) => chrono.parseDate(s, ref);
+	const check = (s: string) => {
+		const d = chrono.parseDate(s, ref);
+		return d ? toUtc(d, tz()) : null;
+	};
 
 	const parsed = check(text) ?? check(normalizeIndonesian(text));
 	if (!parsed) return null;
