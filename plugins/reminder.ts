@@ -181,7 +181,12 @@ function parseDateTime(timeStr: string, dateStr?: string): Date | null {
 		if (!date) return null;
 	} else {
 		const now = new Date();
-		const ds = now.toLocaleString("en-CA", { timeZone: tz() });
+		const ds = new Intl.DateTimeFormat("en-CA", {
+			timeZone: tz(),
+			year: "numeric",
+			month: "2-digit",
+			day: "2-digit",
+		}).format(now);
 		const [y, m, d] = ds.split("-").map(Number);
 		date = { year: y, month: m, day: d };
 	}
@@ -211,10 +216,11 @@ const plugin: BotPlugin = {
 			throw new Error(
 				// \u200B is invisible space char to prevent number being formatted as phone
 				"Tidak dapat memahami format waktu.\n\n" +
-					"*Waktu (wajib):*\n" +
+					"*Format Waktu 24 Jam (wajib):*\n" +
 					"- `HH:mm` — 14:30\n" +
+					"- `HH.mm` — 14\u200B.30\n" +
 					"- `HHmm` — 14\u200B30\n\n" +
-					"*Tanggal (opsional):*\n" +
+					"*Format Tanggal (opsional, default hari ini):*\n" +
 					"- `YYYY-MM-DD` — 2026\u200B-05-28\n" +
 					"- `YYYY/MM/DD` — 2026\u200B/05/28\n" +
 					"- `YYYYMMDD` — 2026\u200B0528\n" +
@@ -223,7 +229,7 @@ const plugin: BotPlugin = {
 					"- `DDMMYYYY` — 2805\u200B2026\n\n" +
 					"*Contoh:*\n" +
 					"- `!reminder 14:30`\n" +
-					"- `!reminder 14:30 2026\u200B-05-28`\n" +
+					"- `!reminder 14.30 2026\u200B-05-28`\n" +
 					"- `!reminder 1430 2805\u200B2026`",
 			);
 		}

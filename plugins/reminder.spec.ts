@@ -149,6 +149,14 @@ describe("parseDateTime", () => {
 		delete process.env.TZ;
 	});
 
+	it("dot separator time — 14.30 2026-05-28", () => {
+		process.env.TZ = "Asia/Jakarta";
+		const result = parseDateTime("14.30", "2026-05-28");
+		assert.ok(result);
+		assert.equal(result.toISOString(), "2026-05-28T07:30:00.000Z");
+		delete process.env.TZ;
+	});
+
 	it("compact time and date — 1430 20260528", () => {
 		process.env.TZ = "Asia/Jakarta";
 		const result = parseDateTime("1430", "20260528");
@@ -162,6 +170,19 @@ describe("parseDateTime", () => {
 		const result = parseDateTime("14:30", "28-05-2026");
 		assert.ok(result);
 		assert.equal(result.toISOString(), "2026-05-28T07:30:00.000Z");
+		delete process.env.TZ;
+	});
+
+	it("compact time without date — 1830 defaults to current date", () => {
+		process.env.TZ = "Asia/Jakarta";
+		const result = parseDateTime("1830");
+		assert.ok(result);
+		assert.equal(result.getUTCHours(), 11);
+		assert.equal(result.getUTCMinutes(), 30);
+
+		const todayJakarta = new Date().toLocaleString("en-CA", { timeZone: "Asia/Jakarta" });
+		const resultJakarta = result.toLocaleString("en-CA", { timeZone: "Asia/Jakarta" });
+		assert.equal(resultJakarta.split(",")[0], todayJakarta.split(",")[0]);
 		delete process.env.TZ;
 	});
 
