@@ -123,7 +123,7 @@ export default {
 				if (example) parts.push(`💬 _${example}_`);
 			}
 
-			yield { type: "text", text: parts.join("\n") };
+			yield { type: "text", text: parts.join("\n"), quoted: true };
 
 			if (used.size >= WORDS.length) {
 				yield { type: "text", text: "Semua kata sudah dijawab! 🎉" };
