@@ -49,7 +49,7 @@
 - **User identity**: `BotUser.lidJid` = LID-based JID, `BotUser.pnJid` = phone-number JID, `BotUser.pushName` = `msg.pushName`.
 - **Media attachment**: `attachment` from the message's own media only (no fallback). Quoted message media available via `quoted.attachment`.
 - **Scheduler**: `lib/scheduler.ts` exports `registerTask({ name, intervalMs, tick })` and `startScheduler(ws)`. Tasks self-register at module load; `main.ts` calls `startScheduler(ws)` once after socket creation. Used by `plugins/reminder.ts` for periodic polling.
-- **Reminders**: `plugins/reminder.ts` — `!reminder <waktu> [tanggal]`. Text from quoted message or prompt. Time parsing uses `chrono-node` with Indonesian word normalization. SQLite-backed, survives restarts.
+- **Reminders**: `plugins/reminder.ts` — `!reminder <waktu> [tanggal]`. Text from quoted message or prompt. Time parsing via regex (24h `HH:mm`/`HHmm`, date `YYYY-MM-DD`/`DD-MM-YYYY`/etc.). SQLite-backed, survives restarts.
 - **Auto-reconnect**: On connection close, bot waits 5s and restarts unless statusCode 401 (logout).
 - **System deps (per-plugin)**: ffmpeg+ffprobe, ghostscript, yt-dlp, pdf2docx. Wrappers in `lib/utils.ts`.
 
