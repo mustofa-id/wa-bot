@@ -32,11 +32,14 @@ const selectDueStmt = db.prepare("SELECT * FROM reminders WHERE done = 0 AND rem
 registerTask({
 	name: "reminders",
 	intervalMs: 15_000,
-	tick: async (sm) => {
+	tick: async (sendMessage) => {
 		const due = selectDueStmt.all() as ReminderRow[];
 		for (const r of due) {
 			try {
-				await sm(r.jid, { type: "text", text: `⏰ *Pengingat!*\n${r.text}` });
+				await sendMessage(r.jid, {
+					type: "text",
+					text: `⏰ *Pengingat! (${r.remind_at})* \n${"-".repeat(16)} \n${r.text}`,
+				});
 				markDoneStmt.run(r.id);
 			} catch (e) {
 				console.error("Failed to send reminder", r.id, e);
@@ -46,7 +49,8 @@ registerTask({
 });
 
 function addReminder(jid: string, creatorJid: string, text: string, remindAt: Date): ReminderRow {
-	const { lastInsertRowid } = insertStmt.run(jid, creatorJid, text, remindAt.toISOString());
+	const remindAtStr = remindAt.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "");
+	const { lastInsertRowid } = insertStmt.run(jid, creatorJid, text, remindAtStr);
 	const row = db.prepare("SELECT * FROM reminders WHERE id = ?").get(Number(lastInsertRowid));
 	return row as ReminderRow;
 }
@@ -201,7 +205,7 @@ function parseDateTime(timeStr: string, dateStr?: string): Date | null {
 
 const plugin: BotPlugin = {
 	command: "!reminder",
-	description: "Membuat pengingat. Gunakan: `!reminder <waktu> [tanggal]`",
+	description: "Membuat pengingat dari quoted atau prompt. Gunakan: `!reminder <waktu> [tanggal]`",
 	queue: "user",
 	async *run({ args, user, quoted }) {
 		const timeStr = args[0];
@@ -218,7 +222,7 @@ const plugin: BotPlugin = {
 				"Tidak dapat memahami format waktu.\n\n" +
 					"*Format Waktu 24 Jam (wajib):*\n" +
 					"- `HH:mm` — 14:30\n" +
-					"- `HH.mm` — 14\u200B.30\n" +
+					"- `HH\u200B.mm` — 14\u200B.30\n" +
 					"- `HHmm` — 14\u200B30\n\n" +
 					"*Format Tanggal (opsional, default hari ini):*\n" +
 					"- `YYYY-MM-DD` — 2026\u200B-05-28\n" +
