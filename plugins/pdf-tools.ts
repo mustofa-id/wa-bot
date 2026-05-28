@@ -1,4 +1,4 @@
-import { cleanUp, getDataDir, ghostScript, soffice } from "#lib/utils.ts";
+import { cleanUp, convertDocx, getDataDir, ghostScript } from "#lib/utils.ts";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -111,9 +111,8 @@ export default {
 				}
 
 				case "docx": {
-					const outputPath = await soffice(inputPath, {
+					const outputPath = await convertDocx(inputPath, {
 						outDir: workDir,
-						convertTo: "docx",
 					});
 					cleanupPaths.push(outputPath);
 

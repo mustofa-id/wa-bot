@@ -8,15 +8,14 @@ FROM node:24.16-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     ghostscript \
-    libreoffice-core \
-    libreoffice-writer \
     python3 \
     python3-pip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Layer 2 — yt-dlp via pip (auto-updates on PyPI releases)
-RUN pip3 install --break-system-packages --no-cache-dir yt-dlp && yt-dlp --version
+# Layer 2 — Python tools (pdf2docx for PDF→DOCX, yt-dlp for media downloads)
+RUN pip3 install --break-system-packages --no-cache-dir yt-dlp pdf2docx && \
+    yt-dlp --version && pdf2docx --version
 
 # ------- Application -------
 

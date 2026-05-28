@@ -1,8 +1,6 @@
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { access, chmod, mkdir, readdir, rename, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { access, chmod, mkdir, readdir, rm } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { setTimeout } from "node:timers/promises";
@@ -177,112 +175,33 @@ export async function ghostScript(
 }
 
 /**
- * Run LibreOffice headless to convert a file.
+ * Convert PDF to DOCX using pdf2docx.
  * Returns the converted file path.
  */
-export async function soffice(
+export async function convertDocx(
 	inputPath: string,
 	options: {
 		outDir: string;
-		convertTo: string;
 	},
 ): Promise<string> {
-	const loProfile = join(tmpdir(), `soffice-${randomUUID()}`);
-	await mkdir(loProfile, { recursive: true });
+	const ext = extname(inputPath);
+	const base = basename(inputPath, ext);
+	const outputPath = join(options.outDir, `${base}.docx`);
 
-	const cmd = "soffice";
-	const args = [
-		"--headless",
-		"--norestore",
-		`-env:UserInstallation=file://${loProfile}`,
-		"--convert-to",
-		options.convertTo,
-		"--outdir",
-		options.outDir,
-		inputPath,
-	];
-
-	// Snapshot output dir before soffice
-	let before: string[];
-	try {
-		before = await readdir(options.outDir);
-	} catch {
-		before = [];
-	}
-
-	try {
-		await new Promise<void>((resolve, reject) => {
-			const proc = spawn(cmd, args);
-			let stderr = "";
-			proc.stderr.on("data", (d) => {
-				stderr += d.toString();
-			});
-			proc.on("close", (code) => {
-				if (code === 0) resolve();
-				else reject(new Error(`soffice exited with code ${code}: ${stderr.slice(-500)}`));
-			});
-			proc.on("error", reject);
+	await new Promise<void>((resolve, reject) => {
+		const proc = spawn("pdf2docx", ["convert", inputPath, outputPath]);
+		let stderr = "";
+		proc.stderr.on("data", (d) => {
+			stderr += d.toString();
 		});
+		proc.on("close", (code) => {
+			if (code === 0) resolve();
+			else reject(new Error(`pdf2docx exited with code ${code}: ${stderr.slice(-500)}`));
+		});
+		proc.on("error", reject);
+	});
 
-		// 1. Check expected path (most common)
-		const ext = extname(inputPath);
-		const base = basename(inputPath, ext);
-		const expectedName = `${base}.${options.convertTo}`;
-		const expectedPath = join(options.outDir, expectedName);
-
-		try {
-			await access(expectedPath, constants.F_OK);
-			try {
-				await chmod(expectedPath, 0o644);
-			} catch {
-				/* best-effort */
-			}
-			return expectedPath;
-		} catch {
-			/* not at expected path */
-		}
-
-		// 2. Find new file in output dir (catch name variance)
-		const after = await readdir(options.outDir);
-		const newFile = after.find(
-			(f) => f.endsWith(`.${options.convertTo}`) && !before.includes(f) && !f.startsWith(".~lock."),
-		);
-		if (newFile) {
-			const outputPath = join(options.outDir, newFile);
-			try {
-				await chmod(outputPath, 0o644);
-			} catch {
-				/* best-effort */
-			}
-			return outputPath;
-		}
-
-		// 3. Fallback: check cwd (LibreOffice sometimes ignores --outdir)
-		let cwdFiles: string[];
-		try {
-			cwdFiles = await readdir(process.cwd());
-		} catch {
-			cwdFiles = [];
-		}
-
-		const cwdMatch = cwdFiles.find((f) => !f.startsWith(".~lock.") && f.endsWith(`.${options.convertTo}`));
-		if (cwdMatch) {
-			const outputPath = join(options.outDir, cwdMatch);
-			await rename(join(process.cwd(), cwdMatch), outputPath);
-			try {
-				await chmod(outputPath, 0o644);
-			} catch {
-				/* best-effort */
-			}
-			return outputPath;
-		}
-
-		throw new Error(
-			`soffice finished but output file not found (looked in: ${options.outDir} and ${process.cwd()})`,
-		);
-	} finally {
-		await rm(loProfile, { recursive: true, force: true });
-	}
+	return outputPath;
 }
 
 /**

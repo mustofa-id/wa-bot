@@ -7,7 +7,7 @@ import {
 	normalizePhone,
 	phoneFromJid,
 	randomInt,
-	soffice,
+	convertDocx,
 	stripDeviceSuffix,
 	ytdlp,
 } from "#lib/utils.ts";
@@ -372,14 +372,14 @@ describe("ghostScript", () => {
 	});
 });
 
-describe("soffice", () => {
+describe("convertDocx", () => {
 	let tempDir: string;
 	let inputPath: string;
 	let available = false;
 
 	before(async () => {
 		available = await new Promise<boolean>((resolve) => {
-			const proc = spawn("soffice", ["--version"]);
+			const proc = spawn("pdf2docx", ["--version"]);
 			proc.on("close", (code) => resolve(code === 0));
 			proc.on("error", () => resolve(false));
 		});
@@ -387,7 +387,7 @@ describe("soffice", () => {
 
 	beforeEach(async () => {
 		if (!available) return;
-		tempDir = await mkdtemp(join(tmpdir(), "soffice-test-"));
+		tempDir = await mkdtemp(join(tmpdir(), "docx-test-"));
 		inputPath = join(tempDir, "input.pdf");
 		await generateMinimalPdf(inputPath);
 	});
@@ -398,9 +398,8 @@ describe("soffice", () => {
 
 	it("converts PDF to docx", { timeout: 30000 }, async () => {
 		if (!available) return;
-		const result = await soffice(inputPath, {
+		const result = await convertDocx(inputPath, {
 			outDir: tempDir,
-			convertTo: "docx",
 		});
 		assert.equal(result, join(tempDir, "input.docx"));
 		await access(result, constants.F_OK);
@@ -409,9 +408,8 @@ describe("soffice", () => {
 	it("rejects on invalid input path", { timeout: 30000 }, async () => {
 		if (!available) return;
 		await assert.rejects(
-			soffice("/nonexistent/file.pdf", {
+			convertDocx("/nonexistent/file.pdf", {
 				outDir: tempDir,
-				convertTo: "docx",
 			}),
 		);
 	});

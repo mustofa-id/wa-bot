@@ -48,7 +48,7 @@
 - **User identity**: `BotUser.lidJid` = LID-based JID, `BotUser.pnJid` = phone-number JID, `BotUser.pushName` = `msg.pushName`.
 - **Media attachment**: `attachment.get()` downloads to Buffer. Falls back to quoted message if the command message has no media. `type` reflects whichever source has media.
 - **Auto-reconnect**: On connection close, bot waits 5s and restarts unless statusCode 401 (logout).
-- **System deps (per-plugin)**: ffmpeg+ffprobe, ghostscript, yt-dlp, LibreOffice (`soffice`). Wrappers in `lib/utils.ts`.
+- **System deps (per-plugin)**: ffmpeg+ffprobe, ghostscript, yt-dlp, pdf2docx. Wrappers in `lib/utils.ts`.
 
 ## Testing
 
@@ -60,7 +60,7 @@
 
 - `./deploy.sh docker` — builds Docker image, runs container with `--cpus="0.7"`, mounts `./data:/app/data`
 - `./deploy.sh pm2` — installs deps, starts via PM2 with `--env-file=.env`
-- Docker image (`Dockerfile`) has system deps (ffmpeg, ghostscript, LibreOffice, yt-dlp) pre-installed
+- Docker image (`Dockerfile`) has system deps (ffmpeg, ghostscript, yt-dlp, pdf2docx) pre-installed
 
 ## Gotchas
 
