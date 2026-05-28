@@ -1,3 +1,4 @@
+import { prompt } from "#lib/conversation.ts";
 import { registerTask } from "#lib/scheduler.ts";
 import { useSqlite } from "#lib/utils.ts";
 import * as chrono from "chrono-node";
@@ -114,7 +115,7 @@ const plugin: BotPlugin = {
 	command: "!reminder",
 	description: "Membuat pengingat. Gunakan: `!reminder <waktu> [tanggal]`",
 	async *run({ args, user, quoted }) {
-		const reminderText = quoted?.text || (yield { type: "text" as const, text: "Apa yang ingin diingatkan?" });
+		const reminderText = quoted?.text || (yield prompt({ type: "text", text: "Apa yang ingin diingatkan?" }));
 
 		const timeInput = args.join(" ");
 		if (!timeInput) {
