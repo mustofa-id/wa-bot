@@ -1,5 +1,5 @@
-import { addUser, approveUser, disableUser, enableUser, listUsers, removeUser } from "#lib/users.ts";
-import { stripDeviceSuffix } from "#lib/utils.ts";
+import { addUser, addUserByPhone, approveUser, disableUser, enableUser, listUsers, removeUser } from "#lib/users.ts";
+import { normalizePhone, stripDeviceSuffix } from "#lib/utils.ts";
 import { glob } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import pkg from "../package.json" with { type: "json" };
@@ -79,6 +79,26 @@ function usersPlugin(ownerId: string): BotPlugin {
 			} else {
 				const [sub, ...rest] = args;
 				switch (sub) {
+					case "add": {
+						const raw = rest[0];
+						if (!raw) {
+							message = "Usage: !users add <phone>";
+						} else {
+							try {
+								const phone = normalizePhone(raw);
+								const row = addUserByPhone(phone);
+								message = `Pengguna #${row.id} berhasil ditambahkan (${row.pnJid}, ${row.lidJid})`;
+							} catch (e: any) {
+								if (e.message?.includes("UNIQUE constraint failed")) {
+									message = `Nomor ${raw} sudah terdaftar`;
+								} else {
+									message = `Gagal menambahkan: ${e.message}`;
+								}
+							}
+						}
+						break;
+					}
+
 					case "approve": {
 						const raw = rest[0];
 						if (!raw) {
@@ -166,6 +186,7 @@ function usersPlugin(ownerId: string): BotPlugin {
 					default:
 						message =
 							`Sub-perintah tidak dikenali. Gunakan:\n` +
+							`- !users add <phone>\n` +
 							`- !users approve <id>\n` +
 							`- !users ls\n` +
 							`- !users rm <id>\n` +

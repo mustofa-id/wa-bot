@@ -73,7 +73,10 @@ describe("users", () => {
 		const users = mod.listUsers();
 		const u = users.find((x) => x.lidJid === "6284444444444:0@lid")!;
 		mod.disableUser(u.id);
-		assert.equal(mod.checkUserAccess("6284444444444:0@lid"), "disabled");
+		assert.equal(
+			mod.checkUserAccess({ lidJid: "6284444444444:0@lid", pnJid: "6284444444444@s.whatsapp.net" }),
+			"disabled",
+		);
 	});
 
 	it("enableUser clears disabled status (approval still required)", () => {
@@ -82,7 +85,10 @@ describe("users", () => {
 		const u = users.find((x) => x.lidJid === "6285555555555:0@lid")!;
 		mod.disableUser(u.id);
 		mod.enableUser(u.id);
-		assert.equal(mod.checkUserAccess("6285555555555:0@lid"), "unapproved");
+		assert.equal(
+			mod.checkUserAccess({ lidJid: "6285555555555:0@lid", pnJid: "6285555555555@s.whatsapp.net" }),
+			"unapproved",
+		);
 	});
 
 	it("removeUser by id deletes user", () => {
@@ -90,7 +96,10 @@ describe("users", () => {
 		const users = mod.listUsers();
 		const u = users.find((x) => x.lidJid === "6286666666666:0@lid")!;
 		mod.removeUser(u.id);
-		assert.equal(mod.checkUserAccess("6286666666666:0@lid"), "unregistered");
+		assert.equal(
+			mod.checkUserAccess({ lidJid: "6286666666666:0@lid", pnJid: "6286666666666@s.whatsapp.net" }),
+			"unregistered",
+		);
 	});
 
 	it("removeUser throws for invalid id", () => {
@@ -131,28 +140,70 @@ describe("users", () => {
 		assert.throws(() => mod.disableUser(-5), /Invalid user id/);
 	});
 
+	it("addUserByPhone creates user with PEND# lidJid and auto-approves", () => {
+		const row = mod.addUserByPhone("6287777777777");
+		assert.equal(row.pnJid, "6287777777777@s.whatsapp.net");
+		assert.match(row.lidJid, /^PEND#\d+$/);
+		assert.equal(row.enabled, 1);
+		assert.ok(row.approved_at);
+	});
+
+	it("addUserByPhone throws on duplicate phone", () => {
+		mod.addUserByPhone("6288888888888");
+		assert.throws(() => mod.addUserByPhone("6288888888888"), /UNIQUE/);
+	});
+
+	it("checkUserAccess matches by pnJid and updates lidJid when lidJid unknown", () => {
+		mod.addUser("6289999999990@s.whatsapp.net", "OLD#1");
+		const user = mod.listUsers().find((u) => u.lidJid === "OLD#1")!;
+		mod.approveUser(user.id);
+
+		const result = mod.checkUserAccess({
+			lidJid: "PEND#999",
+			pnJid: "6289999999990@s.whatsapp.net",
+			pushName: "Updated",
+		});
+		assert.equal(result, "ok");
+
+		const updated = mod.listUsers().find((u) => u.pnJid === "6289999999990@s.whatsapp.net")!;
+		assert.equal(updated.lidJid, "PEND#999");
+		assert.equal(updated.pushName, "Updated");
+	});
+
 	describe("checkUserAccess", () => {
 		it("returns unregistered for unknown lidJid", () => {
-			assert.equal(mod.checkUserAccess("unknown:0@lid"), "unregistered");
+			assert.equal(
+				mod.checkUserAccess({ lidJid: "unknown:0@lid", pnJid: "" }),
+				"unregistered",
+			);
 		});
 
 		it("returns unapproved for newly registered user", () => {
 			mod.addUser("6281111111117@s.whatsapp.net", "6281111111117:0@lid");
-			assert.equal(mod.checkUserAccess("6281111111117:0@lid"), "unapproved");
+			assert.equal(
+				mod.checkUserAccess({ lidJid: "6281111111117:0@lid", pnJid: "6281111111117@s.whatsapp.net" }),
+				"unapproved",
+			);
 		});
 
 		it("returns ok for approved user", () => {
 			mod.addUser("6281111111118@s.whatsapp.net", "6281111111118:0@lid");
 			const u = mod.listUsers().find((x) => x.lidJid === "6281111111118:0@lid")!;
 			mod.approveUser(u.id);
-			assert.equal(mod.checkUserAccess("6281111111118:0@lid"), "ok");
+			assert.equal(
+				mod.checkUserAccess({ lidJid: "6281111111118:0@lid", pnJid: "6281111111118@s.whatsapp.net" }),
+				"ok",
+			);
 		});
 
 		it("returns disabled for disabled user", () => {
 			mod.addUser("6281111111119@s.whatsapp.net", "6281111111119:0@lid");
 			const u = mod.listUsers().find((x) => x.lidJid === "6281111111119:0@lid")!;
 			mod.disableUser(u.id);
-			assert.equal(mod.checkUserAccess("6281111111119:0@lid"), "disabled");
+			assert.equal(
+				mod.checkUserAccess({ lidJid: "6281111111119:0@lid", pnJid: "6281111111119@s.whatsapp.net" }),
+				"disabled",
+			);
 		});
 	});
 });

@@ -17,7 +17,7 @@ const db = await useSqlite("users");
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  pnJid TEXT NOT NULL,
+  pnJid TEXT NOT NULL UNIQUE,
   lidJid TEXT UNIQUE NOT NULL,
   pushName TEXT,
   username TEXT,
@@ -30,8 +30,13 @@ const insertStmt = db.prepare("INSERT INTO users (pnJid, lidJid, pushName, usern
 const deleteStmt = db.prepare("DELETE FROM users WHERE id = ?");
 const setEnabledStmt = db.prepare("UPDATE users SET enabled = ? WHERE id = ?");
 const selectAllStmt = db.prepare("SELECT * FROM users ORDER BY id");
-const selectByLidStmt = db.prepare("SELECT enabled, approved_at FROM users WHERE lidJid = ?");
+const selectByLidStmt = db.prepare("SELECT * FROM users WHERE lidJid = ?");
+const selectByPnJidStmt = db.prepare("SELECT * FROM users WHERE pnJid = ?");
+const updateByPnJidStmt = db.prepare(
+	"UPDATE users SET lidJid = ?, pushName = ?, username = ? WHERE pnJid = ?",
+);
 const approveStmt = db.prepare("UPDATE users SET approved_at = datetime('now') WHERE id = ?");
+const maxIdStmt = db.prepare("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM users");
 
 export function addUser(pnJid: string, lidJid: string, pushName?: string | null, username?: string | null) {
 	if (!pnJid || !lidJid) {
@@ -74,10 +79,33 @@ export function listUsers(): UserRow[] {
 
 export type UserAccess = "ok" | "unregistered" | "disabled" | "unapproved";
 
-export function checkUserAccess(lidJid: string): UserAccess {
-	const row = selectByLidStmt.get(lidJid) as { enabled: number; approved_at: string | null } | undefined;
-	if (!row) return "unregistered";
-	if (row.enabled !== 1) return "disabled";
-	if (!row.approved_at) return "unapproved";
+export function checkUserAccess(user: BotUser): UserAccess {
+	const byLid = selectByLidStmt.get(user.lidJid) as UserRow | undefined;
+	if (byLid) {
+		if (byLid.enabled !== 1) return "disabled";
+		if (!byLid.approved_at) return "unapproved";
+		return "ok";
+	}
+
+	if (!user.pnJid) return "unregistered";
+
+	const byPn = selectByPnJidStmt.get(user.pnJid) as UserRow | undefined;
+	if (!byPn) return "unregistered";
+
+	updateByPnJidStmt.run(user.lidJid, user.pushName ?? null, user.username ?? null, user.pnJid);
+	if (byPn.enabled !== 1) return "disabled";
+	if (!byPn.approved_at) return "unapproved";
 	return "ok";
+}
+
+export function addUserByPhone(phone: string): UserRow {
+	const pnJid = `${phone}@s.whatsapp.net`;
+	const { next_id } = maxIdStmt.get() as { next_id: number };
+	const lidJid = `PEND#${next_id}`;
+
+	insertStmt.run(pnJid, lidJid, null, null);
+	const row = selectByPnJidStmt.get(pnJid) as UserRow;
+	approveStmt.run(row.id);
+	setEnabledStmt.run(1, row.id);
+	return selectByPnJidStmt.get(pnJid) as UserRow;
 }

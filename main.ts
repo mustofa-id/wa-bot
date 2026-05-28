@@ -195,14 +195,12 @@ async function startBot() {
 			} catch {}
 			await setTimeout(randomInt(2_000, 4_000));
 
-			const senderId = stripDeviceSuffix(user.lidJid);
-
 			const [cmd, ...args] = text.split(/\s+/);
 			const plugin = plugins.find((p) => p.command == cmd);
 
 			try {
-				if (senderId !== ownerId && cmd !== "!register") {
-					const msg = accessMessages[checkUserAccess(senderId)];
+				if (stripDeviceSuffix(user.lidJid) !== ownerId && cmd !== "!register") {
+					const msg = accessMessages[checkUserAccess(user)];
 					if (msg) throw new Error(msg);
 				}
 
