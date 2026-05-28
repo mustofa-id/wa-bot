@@ -31,7 +31,7 @@
 
 ## Conventions
 
-- **Named parameters for multi-arg functions**: If a function takes more than one parameter, use an object/options parameter instead of positional args. See `lib/utils.ts` (`ffmpeg`, `ghostScript`, `convertDocx`, etc.) for the pattern.
+- **Named parameters for same-type multi-arg functions**: If a function takes multiple parameters of the same type (e.g., `foo(string, string)`), use an options object instead of positional args. Different-type pairs like `bar(string, number)` are fine positional.
 
 ## Architecture
 
