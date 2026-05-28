@@ -205,11 +205,13 @@ export async function getAllPlugins(ownerId: string) {
 	const pluginsDir = new URL("../plugins/", import.meta.url);
 	const plugins = await Array.fromAsync(glob(pluginsDir.pathname + "/**.ts"));
 	const modules = await Promise.all(
-		plugins.map(async (p) => {
-			const modUrl = pathToFileURL(p).href;
-			const mod = await import(modUrl);
-			return mod.default as BotPlugin;
-		}),
+		plugins
+			.filter((p) => !p.endsWith(".spec.ts"))
+			.map(async (p) => {
+				const modUrl = pathToFileURL(p).href;
+				const mod = await import(modUrl);
+				return mod.default as BotPlugin;
+			}),
 	);
 
 	modules.push(registerPlugin());

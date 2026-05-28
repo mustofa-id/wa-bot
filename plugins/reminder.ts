@@ -57,8 +57,13 @@ function tz(): string {
 	return process.env.TZ || "Asia/Jakarta";
 }
 
+function getPart(parts: Intl.DateTimeFormatPart[], type: string, fallback = 0): number {
+	return parseInt(parts.find((p) => p.type === type)?.value ?? String(fallback));
+}
+
 /** Convert a Date whose UTC components equal the wall-clock time in `tz` to real UTC. */
-function toUtc(date: Date, tz: string): Date {
+function toUtc(date: Date, tz: string): Date | null {
+	if (!Number.isFinite(date.getTime())) return null;
 	const y = date.getUTCFullYear();
 	const M = date.getUTCMonth();
 	const d = date.getUTCDate();
@@ -68,21 +73,28 @@ function toUtc(date: Date, tz: string): Date {
 
 	const wallClockMs = Date.UTC(y, M, d, h, m, s);
 
-	const tzDateStr = date.toLocaleString("en-CA", { timeZone: tz });
-	const tzTimeStr = date.toLocaleString("en-GB", {
+	const dateParts = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).formatToParts(date);
+	const timeParts = new Intl.DateTimeFormat("en-GB", {
 		timeZone: tz,
 		hour12: false,
 		hour: "2-digit",
 		minute: "2-digit",
 		second: "2-digit",
-	});
-	const [ty, tm, td] = tzDateStr.split("-").map(Number);
-	const [th, tMin, ts] = tzTimeStr.split(":").map(Number);
+	}).formatToParts(date);
+
+	const ty = getPart(dateParts, "year");
+	const tm = getPart(dateParts, "month");
+	const td = getPart(dateParts, "day");
+	const th = getPart(timeParts, "hour");
+	const tMin = getPart(timeParts, "minute");
+	const ts = getPart(timeParts, "second");
+
 	const tzWallClockMs = Date.UTC(ty, tm - 1, td, th, tMin, ts);
-
 	const tzOffsetMs = tzWallClockMs - date.getTime();
+	const result = wallClockMs - tzOffsetMs;
 
-	return new Date(wallClockMs - tzOffsetMs);
+	if (!Number.isFinite(result)) return null;
+	return new Date(result);
 }
 
 function parseTime(s: string): { hour: number; minute: number } | null {
@@ -110,18 +122,34 @@ function parseTime(s: string): { hour: number; minute: number } | null {
 	return null;
 }
 
+function isDateValid(month: number, day: number): boolean {
+	return month >= 1 && month <= 12 && day >= 1 && day <= 31;
+}
+
 function parseDate(s: string): { year: number; month: number; day: number } | null {
 	let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-	if (m) return { year: parseInt(m[1]), month: parseInt(m[2]), day: parseInt(m[3]) };
+	if (m) {
+		const [year, month, day] = [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])];
+		if (isDateValid(month, day)) return { year, month, day };
+	}
 
 	m = s.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
-	if (m) return { year: parseInt(m[1]), month: parseInt(m[2]), day: parseInt(m[3]) };
+	if (m) {
+		const [year, month, day] = [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])];
+		if (isDateValid(month, day)) return { year, month, day };
+	}
 
 	m = s.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-	if (m) return { year: parseInt(m[3]), month: parseInt(m[2]), day: parseInt(m[1]) };
+	if (m) {
+		const [day, month, year] = [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])];
+		if (isDateValid(month, day)) return { year, month, day };
+	}
 
 	m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-	if (m) return { year: parseInt(m[3]), month: parseInt(m[2]), day: parseInt(m[1]) };
+	if (m) {
+		const [day, month, year] = [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])];
+		if (isDateValid(month, day)) return { year, month, day };
+	}
 
 	m = s.match(/^(\d{8})$/);
 	if (m) {
@@ -183,21 +211,22 @@ const plugin: BotPlugin = {
 		const remindAt = parseDateTime(timeStr, dateStr);
 		if (!remindAt) {
 			throw new Error(
+				// \u200B is invisible space char to prevent number being formatted as phone
 				"Tidak dapat memahami format waktu.\n\n" +
 					"*Waktu (wajib):*\n" +
 					"- `HH:mm` — 14:30\n" +
-					"- `HHmm` — 1430\n\n" +
+					"- `HHmm` — 14\u200B30\n\n" +
 					"*Tanggal (opsional):*\n" +
-					"- `YYYY-MM-DD` — 2026-05-28\n" +
-					"- `YYYY/MM/DD` — 2026/05/28\n" +
-					"- `YYYYMMDD` — 20260528\n" +
-					"- `DD-MM-YYYY` — 28-05-2026\n" +
-					"- `DD/MM/YYYY` — 28/05/2026\n" +
-					"- `DDMMYYYY` — 28052026\n\n" +
+					"- `YYYY-MM-DD` — 2026\u200B-05-28\n" +
+					"- `YYYY/MM/DD` — 2026\u200B/05/28\n" +
+					"- `YYYYMMDD` — 2026\u200B0528\n" +
+					"- `DD-MM-YYYY` — 28\u200B-05-2026\n" +
+					"- `DD/MM/YYYY` — 28\u200B/05/2026\n" +
+					"- `DDMMYYYY` — 2805\u200B2026\n\n" +
 					"*Contoh:*\n" +
 					"- `!reminder 14:30`\n" +
-					"- `!reminder 14:30 2026-05-28`\n" +
-					"- `!reminder 1430 28052026`",
+					"- `!reminder 14:30 2026\u200B-05-28`\n" +
+					"- `!reminder 1430 2805\u200B2026`",
 			);
 		}
 
@@ -230,3 +259,4 @@ const plugin: BotPlugin = {
 };
 
 export default plugin;
+export { parseDate, parseDateTime, parseTime, toUtc, tz };
