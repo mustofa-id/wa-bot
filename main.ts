@@ -189,6 +189,7 @@ async function startBot() {
 			if (!text.startsWith("!")) continue;
 
 			try {
+				await setTimeout(1700);
 				await ws.readMessages([msg.key]);
 				await ws.sendPresenceUpdate("composing", targetJid);
 			} catch {}
@@ -220,20 +221,25 @@ async function startBot() {
 					);
 				}
 
-				const attachment = buildBotAttachment(msg);
-				const quotedContent = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-				const buildQuoted = () => {
-					if (!quotedContent) return;
-					const quotedMsg = { key: msg.key, message: quotedContent };
-					return {
-						text: getMessageText(quotedMsg),
-						attachment: buildBotAttachment(quotedMsg),
-					};
-				};
-
 				const execute = async () => {
 					try {
-						const result = await plugin.run({ args, user, attachment, quoted: buildQuoted() });
+						const buildQuoted = () => {
+							const quotedContent = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+							if (!quotedContent) return;
+							const quotedMsg = { key: msg.key, message: quotedContent };
+							return {
+								text: getMessageText(quotedMsg),
+								attachment: buildBotAttachment(quotedMsg),
+							};
+						};
+
+						const result = await plugin.run({
+							args,
+							user,
+							attachment: buildBotAttachment(msg),
+							quoted: buildQuoted(),
+						});
+
 						if (result && Symbol.asyncIterator in (result as any)) {
 							const iter = result as AsyncGenerator<BotPluginResult>;
 							let iterResult = await iter.next();
