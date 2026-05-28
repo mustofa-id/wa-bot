@@ -22,6 +22,7 @@
 - `.env` gitignored — copy from `.env.example`. Variables:
     - `DATA_DIR` — data directory (defaults to `<project>/data/`)
     - `FFMPEG_MODE` — ffmpeg mode: `gentle` | `balance` (default) | `performance`
+    - `TZ` — timezone for time parsing and display (default `Asia/Jakarta`)
 - Tests also require `.env` (commands hardcode `--env-file=.env`)
 
 ## Git

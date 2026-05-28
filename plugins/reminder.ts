@@ -94,21 +94,29 @@ function normalizeIndonesian(input: string): string {
 	return s.replace(/\s+/g, " ").trim();
 }
 
+function tz(): string {
+	return process.env.TZ || "Asia/Jakarta";
+}
+
 function parseDateTime(input: string): Date | null {
 	const text = input.trim();
 	if (!text) return null;
 
-	const ref = new Date();
-	const opts: chrono.ParsingOption = { forwardDate: true };
+	const now = new Date();
+	const ref: chrono.ParsingReference = { instant: now, timezone: tz() };
 
-	const direct = chrono.parseDate(text, ref, opts);
-	if (direct) return direct;
+	const check = (s: string) => chrono.parseDate(s, ref);
 
-	const normalized = normalizeIndonesian(text);
-	const parsed = chrono.parseDate(normalized, ref, opts);
-	if (parsed) return parsed;
+	const parsed = check(text) ?? check(normalizeIndonesian(text));
+	if (!parsed) return null;
 
-	return null;
+	// If result is in the past and input has no AM/PM, try PM
+	if (parsed < now && !/\b(?:am|pm)\b/i.test(text)) {
+		const pm = check(text + " pm") ?? check(normalizeIndonesian(text) + " pm");
+		if (pm && pm >= now) return pm;
+	}
+
+	return parsed;
 }
 
 const plugin: BotPlugin = {
@@ -139,6 +147,7 @@ const plugin: BotPlugin = {
 		addReminder(user.lidJid, user.lidJid, reminderText, remindAt);
 
 		const tgl = remindAt.toLocaleString("id-ID", {
+			timeZone: tz(),
 			weekday: "long",
 			year: "numeric",
 			month: "long",
