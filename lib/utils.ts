@@ -3,7 +3,7 @@ import { constants } from "node:fs";
 import { access, mkdir, rm } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { setTimeout } from "node:timers/promises";
+import timers from "node:timers/promises";
 
 type RunArgs = (string | string[])[];
 
@@ -91,7 +91,7 @@ export async function ytdlp(
 export async function cleanUp(...paths: (string | null | undefined)[]): Promise<void> {
 	try {
 		if (paths.length === 0) return;
-		await setTimeout(3500);
+		await timers.setTimeout(3500);
 		for (const path of paths) {
 			if (!path) continue;
 			await rm(path, { force: true });
@@ -196,6 +196,13 @@ export function randomInt(from: number, to?: number, multipleOf?: number): numbe
 	}
 
 	return Math.floor(Math.random() * (to - from + 1)) + from;
+}
+
+export async function delay(...params: Parameters<typeof randomInt>) {
+	if (!params[1]) {
+		return await timers.setTimeout(params[0]);
+	}
+	await timers.setTimeout(randomInt(...params));
 }
 
 /** Extract phone number from a WhatsApp JID. Handles device suffix like `:27`. */

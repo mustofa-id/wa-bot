@@ -9,6 +9,13 @@ interface BotAttachment {
 	}>;
 }
 
+interface BotPluginMessage {
+	/** message ID or Key */
+	id: string;
+	text?: string;
+	attachment?: BotAttachment;
+}
+
 type BotPluginResult = (
 	| {
 			type: "text";
@@ -19,17 +26,19 @@ type BotPluginResult = (
 			filePath: string;
 			caption?: string;
 	  }
-) & { quoted?: boolean };
+) & { quoted?: boolean | BotPluginMessage["id"]; senderId?: string };
+
+type BotPluginResultGenerator = AsyncGenerator<BotPluginResult, BotPluginResult | void, BotPluginMessage>;
 
 type BotPluginRun = (context: {
+	id: BotPluginMessage["id"];
+	chatId: string;
+	isGroup: boolean;
 	args: string[];
 	user: BotUser;
 	attachment?: BotAttachment;
-	quoted?: {
-		text?: string;
-		attachment?: BotAttachment;
-	};
-}) => MaybePromise<BotPluginResult | AsyncGenerator<BotPluginResult>>;
+	quoted?: BotPluginMessage;
+}) => MaybePromise<BotPluginResult | BotPluginResultGenerator>;
 
 interface BotUser {
 	/** LID JID = lid-based identity */

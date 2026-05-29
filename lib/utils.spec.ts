@@ -1,6 +1,7 @@
 import {
 	cleanUp,
 	convertDocx,
+	delay,
 	ffmpeg,
 	ffprobe,
 	getDataDir,
@@ -103,6 +104,31 @@ describe("randomInt", () => {
 	it("multipleOf: no multiples in range returns from", () => {
 		const n = randomInt(1, 3, 10);
 		assert.equal(n, 1);
+	});
+});
+
+describe("delay", () => {
+	it("waits at least the specified duration with single arg", async () => {
+		const start = performance.now();
+		await delay(50);
+		const elapsed = performance.now() - start;
+		assert.ok(elapsed >= 30, `expected >= 30ms, got ${elapsed}ms`);
+	});
+
+	it("waits within the specified range with two args", async () => {
+		for (let i = 0; i < 5; i++) {
+			const start = performance.now();
+			await delay(50, 150);
+			const elapsed = performance.now() - start;
+			assert.ok(elapsed >= 30 && elapsed <= 200, `expected 30-200ms, got ${elapsed}ms`);
+		}
+	});
+
+	it("resolves quickly for 0ms delay", async () => {
+		const start = performance.now();
+		await delay(0);
+		const elapsed = performance.now() - start;
+		assert.ok(elapsed < 50, `expected quick resolve, got ${elapsed}ms`);
 	});
 });
 

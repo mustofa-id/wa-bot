@@ -11,7 +11,7 @@ export function isPrompt(value: BotPluginResult): boolean {
 const CONVERSATION_TIMEOUT = 5 * 60_000;
 
 interface Session {
-	resolve: (text: string) => void;
+	resolve: (message: BotPluginMessage) => void;
 	reject: (err: Error) => void;
 	timer: ReturnType<typeof setTimeout>;
 }
@@ -19,8 +19,8 @@ interface Session {
 export class ConversationManager {
 	private sessions = new Map<string, Session>();
 
-	async waitForMessage(userId: string): Promise<string> {
-		return new Promise<string>((resolve, reject) => {
+	async waitForMessage(userId: string): Promise<BotPluginMessage> {
+		return new Promise<BotPluginMessage>((resolve, reject) => {
 			const timer = setTimeout(() => {
 				this.sessions.delete(userId);
 				reject(new Error("Percakapan berakhir karena tidak ada respon."));
@@ -29,12 +29,12 @@ export class ConversationManager {
 		});
 	}
 
-	resolve(userId: string, text: string): boolean {
+	resolve(userId: string, message: BotPluginMessage): boolean {
 		const session = this.sessions.get(userId);
 		if (!session) return false;
 		clearTimeout(session.timer);
 		this.sessions.delete(userId);
-		session.resolve(text);
+		session.resolve(message);
 		return true;
 	}
 

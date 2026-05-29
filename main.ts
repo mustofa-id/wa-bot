@@ -3,11 +3,10 @@ import { ConversationManager, isPrompt } from "#lib/conversation.ts";
 import { getAllPlugins } from "#lib/plugins.ts";
 import { startScheduler } from "#lib/scheduler.ts";
 import { checkUserAccess, type UserAccess } from "#lib/users.ts";
-import { randomInt, stripDeviceSuffix } from "#lib/utils.ts";
-import createWASocket, { downloadMediaMessage, type AnyMessageContent, type WAMessage } from "baileys";
+import { delay, stripDeviceSuffix } from "#lib/utils.ts";
+import createWASocket, { downloadMediaMessage, proto, type AnyMessageContent, type WAMessage } from "baileys";
 import mime from "mime-types";
 import { basename } from "node:path";
-import { setTimeout } from "node:timers/promises";
 import qrcode from "qrcode";
 
 function getMessageText(msg: WAMessage): string | undefined {
@@ -113,9 +112,25 @@ async function startBot() {
 	const cm = new ConversationManager();
 	const ws = createWASocket({ auth: state });
 
-	startScheduler(async (jid, result) => {
-		await ws.sendMessage(jid, pluginResultToMessage(result));
-	});
+	async function sendMessage(chatId: string, result: BotPluginResult, msg?: WAMessage) {
+		const quoted =
+			typeof result.quoted == "string"
+				? ({
+						key: {
+							id: result.quoted,
+							remoteJid: chatId,
+							fromMe: msg?.key?.fromMe || false,
+							// `participant` is required for group chat
+							participant: result.senderId || msg?.key?.participant,
+						},
+						// `conversation` is required by Baileys' `generateWAMessageFromContent`
+						message: { conversation: "" },
+					} satisfies WAMessage)
+				: msg;
+		await ws.sendMessage(chatId, pluginResultToMessage(result), { quoted });
+	}
+
+	startScheduler(sendMessage);
 
 	function buildBotAttachment(msg: WAMessage): BotAttachment | undefined {
 		const { type, mimeType, fileName } = getAttachmentMeta(msg);
@@ -137,6 +152,16 @@ async function startBot() {
 		};
 	}
 
+	async function simulateComposing(chatId: string, messagesToRead: proto.IMessageKey[] = []) {
+		try {
+			if (messagesToRead.length) {
+				await ws.readMessages(messagesToRead);
+			}
+			await ws.sendPresenceUpdate("composing", chatId);
+			await delay(2_000, 4_000);
+		} catch {}
+	}
+
 	ws.ev.on("creds.update", saveCreds);
 
 	ws.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
@@ -149,7 +174,7 @@ async function startBot() {
 			const shouldReconnect = statusCode !== 401;
 			if (shouldReconnect) {
 				// reconnect on pairing restart errors
-				await setTimeout(5_000);
+				await delay(5_000);
 				await startBot();
 			}
 			return;
@@ -184,21 +209,19 @@ async function startBot() {
 				pushName: msg.pushName,
 			};
 
-			const targetJid = msg.key.remoteJid!; // correct for user or group
+			const chatId = msg.key.remoteJid!; // correct for user and group
+			const messageId = msg.key.id || "";
 			const text = getMessageText(msg);
 			if (!text) continue;
 
-			console.log(`[${new Date().toLocaleString()}] ->`, { user, text });
+			console.log(`[${new Date().toLocaleString()}] ->`, { user: user.pnJid, text });
 
-			if (cm.resolve(user.lidJid, text)) continue;
+			const attachment = buildBotAttachment(msg);
+			if (cm.resolve(user.lidJid, { id: messageId, text: text, attachment: attachment })) continue;
 			if (!text.startsWith("!")) continue;
 
-			try {
-				await setTimeout(1700);
-				await ws.readMessages([msg.key]);
-				await ws.sendPresenceUpdate("composing", targetJid);
-			} catch {}
-			await setTimeout(randomInt(2_000, 4_000));
+			await delay(1500, 2500, 500);
+			await simulateComposing(chatId, [msg.key]);
 
 			const [cmd, ...args] = text.split(/\s+/);
 			const plugin = plugins.find((p) => p.command == cmd);
@@ -218,7 +241,7 @@ async function startBot() {
 					(plugin.queue === "global" && globalQueue !== null)
 				) {
 					await ws.sendMessage(
-						targetJid,
+						chatId,
 						{ text: "Permintaan kamu sedang mengantre, mohon tunggu..." },
 						{ quoted: msg },
 					);
@@ -226,49 +249,42 @@ async function startBot() {
 
 				const execute = async () => {
 					try {
-						const buildQuoted = () => {
-							const quotedContent = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-							if (!quotedContent) return;
-							const quotedMsg = { key: msg.key, message: quotedContent };
+						const buildQuoted = (): BotPluginMessage | undefined => {
+							const quotedInfo = msg.message?.extendedTextMessage?.contextInfo;
+							if (!quotedInfo?.quotedMessage) return;
+							const quotedMsg = { key: msg.key, message: quotedInfo.quotedMessage };
 							return {
+								id: quotedInfo.stanzaId || "",
 								text: getMessageText(quotedMsg),
 								attachment: buildBotAttachment(quotedMsg),
 							};
 						};
 
 						const result = await plugin.run({
-							args,
-							user,
-							attachment: buildBotAttachment(msg),
+							id: messageId,
+							chatId: chatId,
+							isGroup: isGroup,
+							args: args,
+							user: user,
+							attachment: attachment,
 							quoted: buildQuoted(),
 						});
 
-						if (result && Symbol.asyncIterator in (result as any)) {
-							const iter = result as AsyncGenerator<BotPluginResult>;
-							let iterResult = await iter.next();
-							while (!iterResult.done) {
-								const value = iterResult.value;
-								await ws.sendMessage(targetJid, pluginResultToMessage(value), {
-									quoted: value.quoted ? msg : undefined,
-								});
-
-								if (isPrompt(value)) {
+						if (result && Symbol.asyncIterator in result) {
+							let iter = await result.next();
+							while (!iter.done) {
+								await simulateComposing(chatId);
+								await sendMessage(chatId, iter.value, msg);
+								if (isPrompt(iter.value)) {
 									const reply = await cm.waitForMessage(user.lidJid);
-									iterResult = await iter.next(reply);
+									iter = await result.next(reply);
 								} else {
-									iterResult = await iter.next();
+									iter = await result.next();
 								}
 							}
-
-							if (iterResult.value) {
-								await ws.sendMessage(targetJid, pluginResultToMessage(iterResult.value), {
-									quoted: iterResult.value.quoted ? msg : undefined,
-								});
-							}
+							if (iter.value) await sendMessage(chatId, iter.value, msg);
 						} else if (result) {
-							await ws.sendMessage(targetJid, pluginResultToMessage(result as BotPluginResult), {
-								quoted: (result as BotPluginResult).quoted ? msg : undefined,
-							});
+							await sendMessage(chatId, result, msg);
 						}
 					} finally {
 						cm.cleanup(user.lidJid);
@@ -293,12 +309,12 @@ async function startBot() {
 						? error.message.trim().split("\n").filter(Boolean).join("\n> ")
 						: "Unknown error";
 				await ws.sendMessage(
-					targetJid,
+					chatId,
 					{ text: `⚠️ Gagal menjalankan perintah \n\n> ${msgFmt}` },
 					{ quoted: msg },
 				);
 			} finally {
-				await ws.sendPresenceUpdate("paused", targetJid);
+				await ws.sendPresenceUpdate("paused", chatId);
 			}
 		}
 	});

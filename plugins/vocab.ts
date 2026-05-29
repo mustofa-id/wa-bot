@@ -90,7 +90,7 @@ export default {
 				text: `(${total}) Apa arti kata *${word.en}*?`,
 			});
 
-			const isCorrect = (answer ?? "").trim().toLowerCase() === word.id.toLowerCase();
+			const isCorrect = (answer.text ?? "").trim().toLowerCase() === word.id.toLowerCase();
 			if (isCorrect) correct++;
 
 			let phonetic = "";
@@ -99,7 +99,7 @@ export default {
 			try {
 				const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word.en}`);
 				if (res.ok) {
-					const data = (await res.json()) as any;
+					const data = await res.json();
 					const entry = data[0];
 					phonetic = entry?.phonetic ?? "";
 					const meaning = entry?.meanings?.[0]?.definitions?.[0];
@@ -123,7 +123,7 @@ export default {
 				if (example) parts.push(`💬 _${example}_`);
 			}
 
-			yield { type: "text", text: parts.join("\n"), quoted: true };
+			yield { type: "text", text: parts.join("\n"), quoted: answer.id };
 
 			if (used.size >= WORDS.length) {
 				yield { type: "text", text: "Semua kata sudah dijawab! 🎉" };
@@ -135,7 +135,7 @@ export default {
 				text: "Lanjut? (ya/tidak)",
 			});
 
-			if (!["ya", "y", "yes", "lanjut"].includes((cont ?? "").trim().toLowerCase())) {
+			if (!["ya", "y", "yes", "lanjut"].includes((cont.text ?? "").trim().toLowerCase())) {
 				break;
 			}
 		}

@@ -1,4 +1,4 @@
-type SendMessageFn = (targetJid: string, result: BotPluginResult) => MaybePromise<void>;
+type SendMessageFn = (chatId: string, result: BotPluginResult) => MaybePromise<void>;
 
 interface ScheduledTask {
 	name: string;

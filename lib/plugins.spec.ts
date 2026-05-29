@@ -31,6 +31,9 @@ describe("getAllPlugins", () => {
 		for (const plugin of plugins) {
 			try {
 				const result = await plugin.run({
+					id: "1",
+					chatId: "1",
+					isGroup: false,
 					args: [],
 					user: { lidJid: "test", pnJid: "test" },
 				});

@@ -1,17 +1,39 @@
-import { parseDate, parseDateTime, parseTime, toUtc, tz } from "#plugins/reminder.ts";
+import { parseDate, parseDateTime, parseTime, toUtc } from "#plugins/reminder.ts";
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { after, before, describe, it } from "node:test";
 
-describe("tz", () => {
-	it("returns env var when set", () => {
-		process.env.TZ = "America/New_York";
-		assert.equal(tz(), "America/New_York");
-		delete process.env.TZ;
+describe("reminder utils", () => {
+	let modTz: () => string;
+	let tempDir: string;
+	let originalDataDir: string | undefined;
+
+	before(async () => {
+		originalDataDir = process.env.DATA_DIR;
+		tempDir = await mkdtemp(join(tmpdir(), "reminder-test-"));
+		process.env.DATA_DIR = `file://${tempDir}/`;
+		const mod = await import("#plugins/reminder.ts");
+		modTz = mod.tz;
 	});
 
-	it("defaults to Asia/Jakarta", () => {
-		delete process.env.TZ;
-		assert.equal(tz(), "Asia/Jakarta");
+	after(async () => {
+		process.env.DATA_DIR = originalDataDir;
+		await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+	});
+
+	describe("tz", () => {
+		it("returns env var when set", () => {
+			process.env.TZ = "America/New_York";
+			assert.equal(modTz(), "America/New_York");
+			delete process.env.TZ;
+		});
+
+		it("defaults to Asia/Jakarta", () => {
+			delete process.env.TZ;
+			assert.equal(modTz(), "Asia/Jakarta");
+		});
 	});
 });
 

@@ -6,6 +6,7 @@ import type { SQLOutputValue } from "node:sqlite";
 interface ReminderRow extends Record<string, SQLOutputValue> {
 	id: number;
 	jid: string;
+	message_id: string | null;
 	creator_jid: string;
 	text: string;
 	remind_at: string;
@@ -18,6 +19,7 @@ const db = await useSqlite("reminders");
 db.exec(`CREATE TABLE IF NOT EXISTS reminders (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   jid TEXT NOT NULL,
+  message_id TEXT,
   creator_jid TEXT NOT NULL,
   text TEXT NOT NULL,
   remind_at TEXT NOT NULL,
@@ -25,7 +27,9 @@ db.exec(`CREATE TABLE IF NOT EXISTS reminders (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`);
 
-const insertStmt = db.prepare("INSERT INTO reminders (jid, creator_jid, text, remind_at) VALUES (?, ?, ?, ?)");
+const insertStmt = db.prepare(
+	"INSERT INTO reminders (jid, message_id, creator_jid, text, remind_at) VALUES (?, ?, ?, ?, ?)",
+);
 const markDoneStmt = db.prepare("UPDATE reminders SET done = 1 WHERE id = ?");
 const selectDueStmt = db.prepare("SELECT * FROM reminders WHERE done = 0 AND remind_at <= datetime('now')");
 
@@ -39,6 +43,8 @@ registerTask({
 				await sendMessage(r.jid, {
 					type: "text",
 					text: `⏰ *Pengingat!* \n> ${fmtDateString(r.remind_at)} \n${"─".repeat(16)} \n${r.text}`,
+					quoted: r.message_id || undefined,
+					senderId: r.creator_jid,
 				});
 				markDoneStmt.run(r.id);
 			} catch (e) {
@@ -48,12 +54,12 @@ registerTask({
 	},
 });
 
-function addReminder(jid: string, creatorJid: string, text: string, remindAt: Date): ReminderRow {
+function addReminder(jid: string, messageId: string, creatorJid: string, text: string, remindAt: Date): ReminderRow {
 	const remindAtStr = remindAt
 		.toISOString()
 		.replace("T", " ")
 		.replace(/\.\d{3}Z$/, "");
-	const { lastInsertRowid } = insertStmt.run(jid, creatorJid, text, remindAtStr);
+	const { lastInsertRowid } = insertStmt.run(jid, messageId, creatorJid, text, remindAtStr);
 	const row = db.prepare("SELECT * FROM reminders WHERE id = ?").get(Number(lastInsertRowid));
 	return row as ReminderRow;
 }
@@ -253,15 +259,19 @@ const plugin: BotPlugin = {
 			);
 		}
 
-		const reminderText =
-			quoted?.text ||
-			(yield prompt({
+		let reminderText = quoted?.text || "";
+		let reminderMessageId = quoted?.id || "";
+		if (!reminderText) {
+			const { text, id } = yield prompt({
 				type: "text",
 				text: "Apa yang ingin diingatkan?",
 				quoted: true,
-			}));
+			});
+			reminderText = text || "";
+			reminderMessageId = id;
+		}
 
-		addReminder(user.lidJid, user.lidJid, reminderText, remindAt);
+		addReminder(user.lidJid, reminderMessageId, user.lidJid, reminderText, remindAt);
 
 		const reminderDateTime = fmtDateString(remindAt);
 		return {

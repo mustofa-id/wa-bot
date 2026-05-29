@@ -14,7 +14,7 @@
 | `pnpm dev`                         | Start bot with file watching (`node --env-file=.env --watch main.ts`) |
 | `pnpm test`                        | Run all `*.spec.ts` tests (Node test runner)                          |
 | `pnpm test:watch`                  | Run tests in watch mode                                               |
-| `pnpm test:file lib/utils.spec.ts` | Run single test file                                                  |
+| `pnpm test:file <path>`            | Run single test file (e.g. `pnpm test:file lib/utils.spec.ts`)       |
 | `pnpm format`                      | Format all files with Prettier                                        |
 
 ## Environment
@@ -40,15 +40,16 @@
 - **Entrypoint**: `main.ts` — imports via `#lib/*` and `#plugins/*` aliases (Node `imports` map in `package.json`)
 - **Plugin auto-discovery**: `lib/plugins.ts:getAllPlugins(ownerId)` globs `plugins/**.ts`, dynamic-imports each; expects `export default BotPlugin`. Called inside `startBot()` in `main.ts` so `ownerId` (derived from auth state) is available.
 - **Built-in plugins**: `!help`, `!register`, and `!users` defined as factory functions in `lib/plugins.ts` (not in `plugins/` dir)
-- **Plugin shape** (`lib/types.d.ts`): `command` (template literal `!${string}`), `description?`, `queue?` (`"user"`/`"global"`), `run(ctx)`. Plugins use `satisfies BotPlugin` for type safety.
+- **Plugin shape** (`lib/types.d.ts`): `command` (template literal `!${string}`), `description?`, `queue?` (`"user"`/`"global"`), `run(ctx)`. Plugins use `satisfies BotPlugin` for type safety. All `Bot*` types are global ambient decls — no import needed.
 - **Generator plugins**: `run` returns `AsyncGenerator<BotPluginResult>` — yields "Mohon tunggu…" then processed result. Errors after yields still deliver sent messages.
 - **Interactive plugins**: `yield prompt({ type: "text", text: "?" })` waits for user text reply — evaluates to the reply string. Non-`!` messages from a user with a pending `prompt()` route to resolve it. In-memory sessions with 5 min inactivity timeout.
 - **Queues**: `queue: "user"` serializes per-user; `queue: "global"` serializes all. Users notified while queued.
+- **SQLite**: `lib/utils.ts:useSqlite(name)` returns `Promise<DatabaseSync>` with `journal_mode=WAL` and `synchronous=NORMAL`. Called at module top-level (with `await`) in `lib/auth.ts`, `lib/users.ts`, `plugins/reminder.ts`.
 - **Auth**: SQLite-backed (`data/auth.db`) via `lib/auth.ts` using `node:sqlite`. Owner resolved from `state.creds.me?.lid` (stripped of device suffix via `stripDeviceSuffix()`).
 - **Users**: SQLite-backed (`data/users.db`) via `lib/users.ts`. Owner-only commands (`!users add|approve|ls|rm|on|off`). `checkUserAccess(user: BotUser)` matches by lidJid first, then falls back to pnJid (updating lidJid on match). Owner bypasses user check. `addUserByPhone(phone)` auto-approves and assigns `PEND#<uuid>` lidJid.
 - **User identity**: `BotUser.lidJid` = LID-based JID, `BotUser.pnJid` = phone-number JID, `BotUser.pushName` = `msg.pushName`.
 - **Media attachment**: `attachment` from the message's own media only (no fallback). Quoted message media available via `quoted.attachment`.
-- **Scheduler**: `lib/scheduler.ts` exports `registerTask({ name, intervalMs, tick })` and `startScheduler(ws)`. Tasks self-register at module load; `main.ts` calls `startScheduler(ws)` once after socket creation. Used by `plugins/reminder.ts` for periodic polling.
+- **Scheduler**: `lib/scheduler.ts` exports `registerTask({ name, intervalMs, tick })` and `startScheduler(sendMessage)`. Tasks self-register at module load; `main.ts` calls `startScheduler(sendMessage)` once after socket creation (passes the local `sendMessage` helper, not the socket). Used by `plugins/reminder.ts` for periodic polling.
 - **Reminders**: `plugins/reminder.ts` — `!reminder <waktu> [tanggal]`. Text from quoted message or prompt. Time parsing via regex (24h `HH:mm`/`HHmm`, date `YYYY-MM-DD`/`DD-MM-YYYY`/etc.). SQLite-backed, survives restarts.
 - **Auto-reconnect**: On connection close, bot waits 5s and restarts unless statusCode 401 (logout).
 - **System deps (per-plugin)**: ffmpeg+ffprobe, ghostscript, yt-dlp, pdf2docx. Wrappers in `lib/utils.ts`.
@@ -58,6 +59,7 @@
 - Node built-in `node:test` + `node:assert` (no Jest/Vitest)
 - Test files alongside source: `*.spec.ts`
 - `lib/utils.spec.ts` conditionally skips ffmpeg/ffprobe/yt-dlp/pdf2docx/gs tests if binary unavailable
+- Tests with SQLite side effects (auth, users) isolate via `DATA_DIR` env override pointing to a temp directory
 
 ## Deployment
 
@@ -73,6 +75,7 @@
 - Error messages are in Indonesian (no i18n yet)
 - Plugin temp files cleaned with `cleanUp()` after 3.5s delay (fire-and-forget, errors logged to console.warn)
 - Error responses always prefixed with `⚠️`
+- Plugin temp file IDs use `crypto.randomUUID()` — no sequential or timestamp-based IDs
 - Custom cSpell dictionary at `./spelling.dic` — wired in `.vscode/settings.json`
 - `/data` and `*.db` are gitignored; SQLite WAL artifacts (`*.db-wal`, `*.db-shm`) covered by `/data` gitignore rule
 - No database migrations

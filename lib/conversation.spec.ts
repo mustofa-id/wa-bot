@@ -29,26 +29,26 @@ describe("ConversationManager", () => {
 	it("resolves waitForMessage when resolve is called", async () => {
 		const mgr = new ConversationManager();
 		const promise = mgr.waitForMessage("user1");
-		mgr.resolve("user1", "reply text");
-		assert.equal(await promise, "reply text");
+		mgr.resolve("user1", { id: "1", text: "reply text" });
+		assert.deepEqual(await promise, { id: "1", text: "reply text" });
 	});
 
 	it("resolve returns false for unknown user", () => {
 		const mgr = new ConversationManager();
-		assert.equal(mgr.resolve("nobody", "hi"), false);
+		assert.equal(mgr.resolve("nobody", { id: "1", text: "hi" }), false);
 	});
 
 	it("resolve returns true for pending user", () => {
 		const mgr = new ConversationManager();
 		mgr.waitForMessage("user2");
-		assert.equal(mgr.resolve("user2", "ok"), true);
+		assert.equal(mgr.resolve("user2", { id: "1", text: "ok" }), true);
 	});
 
 	it("cleanup removes pending session", () => {
 		const mgr = new ConversationManager();
 		mgr.waitForMessage("user3");
 		mgr.cleanup("user3");
-		assert.equal(mgr.resolve("user3", "x"), false);
+		assert.equal(mgr.resolve("user3", { id: "1", text: "x" }), false);
 	});
 
 	it("cleanup is no-op for unknown user", () => {
@@ -75,6 +75,6 @@ describe("ConversationManager", () => {
 
 		// old session is gone; a new session can be created for the same userId
 		mgr.waitForMessage("user-reuse");
-		assert.equal(mgr.resolve("user-reuse", "ok"), true);
+		assert.equal(mgr.resolve("user-reuse", { id: "1", text: "ok" }), true);
 	});
 });
