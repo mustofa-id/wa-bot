@@ -1,5 +1,7 @@
 AUTOINCREMENT
 autoremove
+bestaudio
+bestvideo
 chrono
 creds
 dayafter
@@ -25,5 +27,6 @@ pengingat
 qrcode
 soffice
 ultrafast
+vcodec
 veryfast
 ytdlp
