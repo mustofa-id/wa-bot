@@ -2,6 +2,8 @@ AUTOINCREMENT
 autoremove
 chrono
 creds
+dayafter
+dayaftertomorrow
 esac
 faststart
 ffprobe

@@ -151,6 +151,38 @@ function isDateValid(month: number, day: number): boolean {
 	return month >= 1 && month <= 12 && day >= 1 && day <= 31;
 }
 
+function todayInTz(): { year: number; month: number; day: number } {
+	const now = new Date();
+	const ds = new Intl.DateTimeFormat("en-CA", {
+		timeZone: tz(),
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+	}).format(now);
+	const [y, m, d] = ds.split("-").map(Number);
+	return { year: y, month: m, day: d };
+}
+
+function offsetDate(
+	date: { year: number; month: number; day: number },
+	days: number,
+): { year: number; month: number; day: number } {
+	const d = new Date(Date.UTC(date.year, date.month - 1, date.day + days));
+	return {
+		year: d.getUTCFullYear(),
+		month: d.getUTCMonth() + 1,
+		day: d.getUTCDate(),
+	};
+}
+
+const dateAliases: Record<string, number> = {
+	besok: 1,
+	lusa: 2,
+	tomorrow: 1,
+	dayaftertomorrow: 2,
+	dayafter: 2,
+};
+
 function parseDate(s: string): { year: number; month: number; day: number } | null {
 	let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
 	if (m) {
@@ -204,18 +236,15 @@ function parseDateTime(timeStr: string, dateStr?: string): Date | null {
 	let date: { year: number; month: number; day: number } | null = null;
 
 	if (dateStr) {
-		date = parseDate(dateStr);
-		if (!date) return null;
+		const alias = dateStr.toLowerCase();
+		if (alias in dateAliases) {
+			date = offsetDate(todayInTz(), dateAliases[alias]);
+		} else {
+			date = parseDate(dateStr);
+			if (!date) return null;
+		}
 	} else {
-		const now = new Date();
-		const ds = new Intl.DateTimeFormat("en-CA", {
-			timeZone: tz(),
-			year: "numeric",
-			month: "2-digit",
-			day: "2-digit",
-		}).format(now);
-		const [y, m, d] = ds.split("-").map(Number);
-		date = { year: y, month: m, day: d };
+		date = todayInTz();
 	}
 
 	if (date.month < 1 || date.month > 12) return null;
@@ -290,11 +319,14 @@ const plugin: BotPlugin = {
 					"- `YYYYMMDD` — 2026\u200B0528\n" +
 					"- `DD-MM-YYYY` — 28\u200B-05-2026\n" +
 					"- `DD/MM/YYYY` — 28\u200B/05/2026\n" +
-					"- `DDMMYYYY` — 2805\u200B2026\n\n" +
+					"- `DDMMYYYY` — 2805\u200B2026\n" +
+					"- `besok` / `tomorrow` — besok\n" +
+					"- `lusa` / `dayafter` — lusa\n\n" +
 					"*Contoh:*\n" +
 					"- `!reminder 14:30`\n" +
 					"- `!reminder 14.30 2026\u200B-05-28`\n" +
-					"- `!reminder 1430 2805\u200B2026`",
+					"- `!reminder 1430 2805\u200B2026`\n" +
+					"- `!reminder 14:30 besok`",
 			);
 		}
 
@@ -322,4 +354,4 @@ const plugin: BotPlugin = {
 };
 
 export default plugin;
-export { parseDate, parseDateTime, parseTime, toUtc, tz };
+export { dateAliases, offsetDate, parseDate, parseDateTime, parseTime, todayInTz, toUtc, tz };

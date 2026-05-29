@@ -1,4 +1,4 @@
-import { parseDate, parseDateTime, parseTime, toUtc } from "#plugins/reminder.ts";
+import { dateAliases, offsetDate, parseDate, parseDateTime, parseTime, todayInTz, toUtc } from "#plugins/reminder.ts";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -92,6 +92,52 @@ describe("parseTime", () => {
 
 	it("returns null for partial input", () => {
 		assert.equal(parseTime("14:"), null);
+	});
+});
+
+describe("todayInTz", () => {
+	it("returns today's date in configured timezone", () => {
+		process.env.TZ = "Asia/Jakarta";
+		const result = todayInTz();
+		assert.ok(result.year >= 2024);
+		assert.ok(result.month >= 1 && result.month <= 12);
+		assert.ok(result.day >= 1 && result.day <= 31);
+		delete process.env.TZ;
+	});
+});
+
+describe("offsetDate", () => {
+	it("adds positive days", () => {
+		const result = offsetDate({ year: 2026, month: 5, day: 28 }, 1);
+		assert.deepEqual(result, { year: 2026, month: 5, day: 29 });
+	});
+
+	it("wraps across month boundary", () => {
+		const result = offsetDate({ year: 2026, month: 5, day: 31 }, 1);
+		assert.deepEqual(result, { year: 2026, month: 6, day: 1 });
+	});
+
+	it("wraps across year boundary", () => {
+		const result = offsetDate({ year: 2026, month: 12, day: 31 }, 1);
+		assert.deepEqual(result, { year: 2027, month: 1, day: 1 });
+	});
+
+	it("handles negative days", () => {
+		const result = offsetDate({ year: 2026, month: 5, day: 28 }, -1);
+		assert.deepEqual(result, { year: 2026, month: 5, day: 27 });
+	});
+});
+
+describe("dateAliases", () => {
+	it("besok and tomorrow map to 1 day offset", () => {
+		assert.equal(dateAliases["besok"], 1);
+		assert.equal(dateAliases["tomorrow"], 1);
+	});
+
+	it("lusa, dayafter, dayaftertomorrow map to 2 day offset", () => {
+		assert.equal(dateAliases["lusa"], 2);
+		assert.equal(dateAliases["dayafter"], 2);
+		assert.equal(dateAliases["dayaftertomorrow"], 2);
 	});
 });
 
@@ -222,5 +268,80 @@ describe("parseDateTime", () => {
 
 	it("returns null for empty strings after trim", () => {
 		assert.equal(parseDateTime("   "), null);
+	});
+
+	it("besok alias resolves to tomorrow", () => {
+		process.env.TZ = "Asia/Jakarta";
+		const today = todayInTz();
+		const result = parseDateTime("14:30", "besok");
+		assert.ok(result);
+		const expected = offsetDate(today, 1);
+		const resultDate = new Date(result.getTime());
+		const resultDs = resultDate.toLocaleString("en-CA", { timeZone: "Asia/Jakarta" });
+		assert.equal(
+			resultDs.split(",")[0],
+			`${expected.year}-${String(expected.month).padStart(2, "0")}-${String(expected.day).padStart(2, "0")}`,
+		);
+		delete process.env.TZ;
+	});
+
+	it("lusa alias resolves to day after tomorrow", () => {
+		process.env.TZ = "Asia/Jakarta";
+		const today = todayInTz();
+		const result = parseDateTime("14:30", "lusa");
+		assert.ok(result);
+		const expected = offsetDate(today, 2);
+		const resultDate = new Date(result.getTime());
+		const resultDs = resultDate.toLocaleString("en-CA", { timeZone: "Asia/Jakarta" });
+		assert.equal(
+			resultDs.split(",")[0],
+			`${expected.year}-${String(expected.month).padStart(2, "0")}-${String(expected.day).padStart(2, "0")}`,
+		);
+		delete process.env.TZ;
+	});
+
+	it("tomorrow alias works the same as besok", () => {
+		process.env.TZ = "Asia/Jakarta";
+		const today = todayInTz();
+		const result = parseDateTime("14:30", "tomorrow");
+		assert.ok(result);
+		const expected = offsetDate(today, 1);
+		const resultDate = new Date(result.getTime());
+		const resultDs = resultDate.toLocaleString("en-CA", { timeZone: "Asia/Jakarta" });
+		assert.equal(
+			resultDs.split(",")[0],
+			`${expected.year}-${String(expected.month).padStart(2, "0")}-${String(expected.day).padStart(2, "0")}`,
+		);
+		delete process.env.TZ;
+	});
+
+	it("dayafter alias resolves to day after tomorrow", () => {
+		process.env.TZ = "Asia/Jakarta";
+		const today = todayInTz();
+		const result = parseDateTime("14:30", "dayafter");
+		assert.ok(result);
+		const expected = offsetDate(today, 2);
+		const resultDate = new Date(result.getTime());
+		const resultDs = resultDate.toLocaleString("en-CA", { timeZone: "Asia/Jakarta" });
+		assert.equal(
+			resultDs.split(",")[0],
+			`${expected.year}-${String(expected.month).padStart(2, "0")}-${String(expected.day).padStart(2, "0")}`,
+		);
+		delete process.env.TZ;
+	});
+
+	it("case insensitive alias — BESOK", () => {
+		process.env.TZ = "Asia/Jakarta";
+		const today = todayInTz();
+		const result = parseDateTime("14:30", "BESOK");
+		assert.ok(result);
+		const expected = offsetDate(today, 1);
+		const resultDate = new Date(result.getTime());
+		const resultDs = resultDate.toLocaleString("en-CA", { timeZone: "Asia/Jakarta" });
+		assert.equal(
+			resultDs.split(",")[0],
+			`${expected.year}-${String(expected.month).padStart(2, "0")}-${String(expected.day).padStart(2, "0")}`,
+		);
+		delete process.env.TZ;
 	});
 });
