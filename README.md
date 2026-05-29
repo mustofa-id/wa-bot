@@ -5,8 +5,10 @@ Uses a plugin-based architecture — commands auto-discover from the `plugins/` 
 ## Features
 
 - **Plugin system** — drop a file in `plugins/`, export a `BotPlugin`, and `!your-command` works immediately
+- **Status HD** — convert image/video attachments or URLs to HD-ready status with auto-splitting
 - **Queues** — per-user or global serialization for long-running plugins
-- **Generator plugins** — yield intermediate progress messages
+- **Generator plugins** — yield intermediate progress messages and interactive prompts
+- And more...
 
 ## Requirements
 

@@ -50,7 +50,8 @@
 - **User identity**: `BotUser.lidJid` = LID-based JID, `BotUser.pnJid` = phone-number JID, `BotUser.pushName` = `msg.pushName`.
 - **Media attachment**: `attachment` from the message's own media only (no fallback). Quoted message media available via `quoted.attachment`.
 - **Scheduler**: `lib/scheduler.ts` exports `registerTask({ name, intervalMs, tick })` and `startScheduler(sendMessage)`. Tasks self-register at module load; `main.ts` calls `startScheduler(sendMessage)` once after socket creation (passes the local `sendMessage` helper, not the socket). Used by `plugins/reminder.ts` for periodic polling.
-- **Reminders**: `plugins/reminder.ts` — `!reminder <waktu> [tanggal]`. Text from quoted message or prompt. Time parsing via regex (24h `HH:mm`/`HHmm`, date `YYYY-MM-DD`/`DD-MM-YYYY`/etc.). SQLite-backed, survives restarts.
+- **Reminders**: `plugins/reminder.ts` — `!reminder <waktu> [tanggal]`, `!reminder ls`, `!reminder rm <id>`. Text from quoted message or prompt. Time parsing via regex (24h `HH:mm`/`HHmm`, date `YYYY-MM-DD`/`DD-MM-YYYY`/etc.) with date aliases (`besok`/`tomorrow` = +1 day, `lusa`/`dayafter` = +2 day, case-insensitive). SQLite-backed, survives restarts.
+- **Status HD** (`plugins/status-hd.ts`): `!shd` — converts image/video attachments or YouTube URLs to h.264 1080p30 video or 2560px JPEG for WhatsApp status. Multi-item carousels/galleries (up to 10). Uses yt-dlp for URL downloads, ffmpeg with CRF 20 / maxrate 3M / audio 64k AAC. Videos ≥89s split into segments with forced keyframes. FFmpeg mode via `FFMPEG_MODE` env var.
 - **Auto-reconnect**: On connection close, bot waits 5s and restarts unless statusCode 401 (logout).
 - **System deps (per-plugin)**: ffmpeg+ffprobe, ghostscript, yt-dlp, pdf2docx. Wrappers in `lib/utils.ts`.
 
