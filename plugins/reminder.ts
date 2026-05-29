@@ -32,6 +32,8 @@ const insertStmt = db.prepare(
 );
 const markDoneStmt = db.prepare("UPDATE reminders SET done = 1 WHERE id = ?");
 const selectDueStmt = db.prepare("SELECT * FROM reminders WHERE done = 0 AND remind_at <= datetime('now')");
+const selectByCreatorStmt = db.prepare("SELECT * FROM reminders WHERE creator_jid = ? AND done = 0 ORDER BY remind_at");
+const deleteStmt = db.prepare("DELETE FROM reminders WHERE id = ? AND creator_jid = ?");
 
 registerTask({
 	name: "reminders",
@@ -54,12 +56,12 @@ registerTask({
 	},
 });
 
-function addReminder(jid: string, messageId: string, creatorJid: string, text: string, remindAt: Date): ReminderRow {
+function addReminder(chatId: string, messageId: string, creatorJid: string, text: string, remindAt: Date): ReminderRow {
 	const remindAtStr = remindAt
 		.toISOString()
 		.replace("T", " ")
 		.replace(/\.\d{3}Z$/, "");
-	const { lastInsertRowid } = insertStmt.run(jid, messageId, creatorJid, text, remindAtStr);
+	const { lastInsertRowid } = insertStmt.run(chatId, messageId, creatorJid, text, remindAtStr);
 	const row = db.prepare("SELECT * FROM reminders WHERE id = ?").get(Number(lastInsertRowid));
 	return row as ReminderRow;
 }
@@ -226,14 +228,51 @@ function parseDateTime(timeStr: string, dateStr?: string): Date | null {
 
 const plugin: BotPlugin = {
 	command: "!reminder",
-	description: "Membuat pengingat dari quoted atau prompt. Gunakan: `!reminder <jam> [tanggal]`",
+	description:
+		"Membuat pengingat dari quoted atau prompt, atau kelola pengingat. Gunakan: `!reminder <jam> [tanggal]`, `!reminder ls`, `!reminder rm <id>`",
 	queue: "user",
-	async *run({ args, user, quoted }) {
-		const timeStr = args[0];
+	async *run({ args, user, quoted, chatId }) {
+		const sub = args[0];
+
+		if (sub === "ls") {
+			const reminders = selectByCreatorStmt.all(user.lidJid) as ReminderRow[];
+			if (reminders.length === 0) {
+				return { type: "text", text: "Tidak ada pengingat yang akan datang.", quoted: true };
+			}
+			const lines = reminders.map((r) => `- #${r.id} pada ${fmtDateString(r.remind_at)}: "${r.text}"`);
+			return {
+				type: "text",
+				text: `*Pengingat yang akan datang (${reminders.length}):*\n\n${lines.join("\n\n")}`,
+				quoted: true,
+			};
+		}
+
+		if (sub === "rm") {
+			const id = args[1];
+			if (!id) {
+				throw new Error("Gunakan: `!reminder rm <id>`");
+			}
+			const idNum = parseInt(id);
+			if (!Number.isFinite(idNum)) {
+				throw new Error("ID tidak valid.");
+			}
+			const { changes } = deleteStmt.run(idNum, user.lidJid);
+			if (changes === 0) {
+				throw new Error("Pengingat tidak ditemukan.");
+			}
+			return { type: "text", text: `Pengingat ID ${idNum} berhasil dihapus.`, quoted: true };
+		}
+
+		const timeStr = sub;
 		const dateStr = args[1];
 
 		if (!timeStr) {
-			throw new Error("Gunakan: `!reminder <jam> [tanggal]`");
+			throw new Error(
+				"Gunakan:\n" +
+					"- `!reminder <jam> [tanggal]` — buat pengingat baru\n" +
+					"- `!reminder ls` — lihat semua pengingat\n" +
+					"- `!reminder rm <id>` — hapus pengingat",
+			);
 		}
 
 		const remindAt = parseDateTime(timeStr, dateStr);
@@ -271,7 +310,7 @@ const plugin: BotPlugin = {
 			reminderMessageId = id;
 		}
 
-		addReminder(user.lidJid, reminderMessageId, user.lidJid, reminderText, remindAt);
+		addReminder(chatId, reminderMessageId, user.lidJid, reminderText, remindAt);
 
 		const reminderDateTime = fmtDateString(remindAt);
 		return {

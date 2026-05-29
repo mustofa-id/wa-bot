@@ -9,13 +9,13 @@
 
 ## Commands
 
-| Command                            | What it does                                                          |
-| ---------------------------------- | --------------------------------------------------------------------- |
-| `pnpm dev`                         | Start bot with file watching (`node --env-file=.env --watch main.ts`) |
-| `pnpm test`                        | Run all `*.spec.ts` tests (Node test runner)                          |
-| `pnpm test:watch`                  | Run tests in watch mode                                               |
-| `pnpm test:file <path>`            | Run single test file (e.g. `pnpm test:file lib/utils.spec.ts`)       |
-| `pnpm format`                      | Format all files with Prettier                                        |
+| Command                 | What it does                                                          |
+| ----------------------- | --------------------------------------------------------------------- |
+| `pnpm dev`              | Start bot with file watching (`node --env-file=.env --watch main.ts`) |
+| `pnpm test`             | Run all `*.spec.ts` tests (Node test runner)                          |
+| `pnpm test:watch`       | Run tests in watch mode                                               |
+| `pnpm test:file <path>` | Run single test file (e.g. `pnpm test:file lib/utils.spec.ts`)        |
+| `pnpm format`           | Format all files with Prettier                                        |
 
 ## Environment
 
