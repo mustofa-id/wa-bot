@@ -239,10 +239,10 @@ const plugin: BotPlugin = {
 			if (reminders.length === 0) {
 				return { type: "text", text: "Tidak ada pengingat yang akan datang.", quoted: true };
 			}
-			const lines = reminders.map((r) => `- #${r.id} pada ${fmtDateString(r.remind_at)}: "${r.text}"`);
+			const lines = reminders.map((r) => `- \`#${r.id}\` pada ${fmtDateString(r.remind_at)}: \n"${r.text}"`);
 			return {
 				type: "text",
-				text: `*Pengingat yang akan datang (${reminders.length}):*\n\n${lines.join("\n\n")}`,
+				text: `*Pengingat yang akan datang (${reminders.length}):*\n${lines.join("\n\n")}`,
 				quoted: true,
 			};
 		}
@@ -260,7 +260,7 @@ const plugin: BotPlugin = {
 			if (changes === 0) {
 				throw new Error("Pengingat tidak ditemukan.");
 			}
-			return { type: "text", text: `Pengingat ID ${idNum} berhasil dihapus.`, quoted: true };
+			return { type: "text", text: `Pengingat \`#${idNum}\` berhasil dihapus.`, quoted: true };
 		}
 
 		const timeStr = sub;
