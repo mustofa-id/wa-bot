@@ -144,7 +144,14 @@ registerTask({
 		clearOldNotifiedStmt.run(today);
 
 		const now = new Date();
-		const currentMinutes = now.getHours() * 60 + now.getMinutes();
+		const tf = new Intl.DateTimeFormat("en-CA", {
+			timeZone: tz(),
+			hour: "2-digit",
+			minute: "2-digit",
+			hourCycle: "h23",
+		});
+		const [h, m] = tf.format(now).split(":").map(Number);
+		const currentMinutes = h * 60 + m;
 
 		for (const cfg of configs) {
 			if (!cfg.city) continue;
