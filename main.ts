@@ -84,6 +84,8 @@ function pluginResultToMessage(result: BotPluginResult): AnyMessageContent {
 	}
 }
 
+let stopScheduler: ReturnType<typeof startScheduler> | null = null;
+
 async function startBot() {
 	const { state, saveCreds } = await useSQLiteAuthState();
 	const ownerId = stripDeviceSuffix(state.creds.me?.lid ?? "");
@@ -130,7 +132,8 @@ async function startBot() {
 		await ws.sendMessage(chatId, pluginResultToMessage(result), { quoted });
 	}
 
-	startScheduler(sendMessage);
+	stopScheduler?.();
+	stopScheduler = startScheduler(sendMessage);
 
 	function buildBotAttachment(msg: WAMessage): BotAttachment | undefined {
 		const { type, mimeType, fileName } = getAttachmentMeta(msg);

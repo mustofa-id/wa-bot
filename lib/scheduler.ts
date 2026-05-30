@@ -17,7 +17,7 @@ export function startScheduler(sm: SendMessageFn): () => void {
 	if (started) throw new Error("Scheduler already started");
 	started = true;
 
-	const snapshot = tasks.splice(0);
+	const snapshot = [...tasks];
 	const intervals: ReturnType<typeof setInterval>[] = [];
 
 	for (const task of snapshot) {
