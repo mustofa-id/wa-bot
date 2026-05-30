@@ -326,8 +326,8 @@ export default {
 				const name = PRAYER_NAMES[prayer] || prayer;
 				lines.push(
 					`*${name}* (${timeStr}):`,
-					`  - 10 menit sebelum: "Waktu *${name}* akan tiba dalam 10 menit (${timeStr})."`,
-					`  - Tepat waktu: "Waktu *${name}* telah tiba."\n`,
+					`- 10 menit sebelum: "Waktu *${name}* akan tiba dalam 10 menit (${timeStr})."`,
+					`- Tepat waktu: "Waktu *${name}* telah tiba."\n`,
 				);
 			}
 
