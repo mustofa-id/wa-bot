@@ -363,11 +363,11 @@ export default {
 				text:
 					`*Jadwal Sholat Hari Ini*\n${"─".repeat(14)} \n` +
 					`📍 ${config.city}, ${config.country} \n` +
-					`📅 ${fmtDate(today)} \n${"─".repeat(14)} \n` +
+					`🗓️ ${fmtDate(today)} \n${"─".repeat(14)} \n` +
 					`${lines} \n${"─".repeat(14)} \n` +
-					`🕌 ${methodName(config.method)} \n` +
-					`🔔 ${config.enabled ? "Aktif" : "Nonaktif"} \n` +
-					`🎛️ ${config.tune}`,
+					`> Metode: ${methodName(config.method)} \n` +
+					`> Pengingat: ${config.enabled ? "Aktif" : "Nonaktif"} \n` +
+					`> Tune: ${config.tune}`,
 				quoted: true,
 			};
 		}
@@ -376,7 +376,7 @@ export default {
 			"Sub-perintah tidak dikenal. Gunakan:\n" +
 				"- `!prayers` — lihat jadwal hari ini\n" +
 				"- `!prayers on` — aktifkan notifikasi\n" +
-				"- `!prayers off` — nonaktifkan notifikasi\n" +
+				"- `!prayers off` — nonaktifkan pengingat\n" +
 				"- `!prayers setup` — atur kota dan metode\n" +
 				"- `!prayers tune` — sesuaikan waktu sholat\n" +
 				"- `!prayers test` — uji notifikasi",
