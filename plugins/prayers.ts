@@ -201,7 +201,7 @@ export default {
 	description:
 		"Menampilkan jadwal sholat, mengaktifkan/mematikan notifikasi, " +
 		"mengatur kota, atau menyesuaikan waktu. Gunakan: `!prayers`, " +
-		"`!prayers on/off`, `!prayers setup`, `!prayers tune`",
+		"`!prayers on/off`, `!prayers setup`, `!prayers tune`, `!prayers test`",
 	queue: "user",
 	async *run({ args, user }) {
 		const sub = args[0];
@@ -308,6 +308,36 @@ export default {
 			};
 		}
 
+		if (sub === "test") {
+			const config = getConfigStmt.get(user.lidJid) as PrayerConfig | undefined;
+			if (!config || !config.city) {
+				throw new Error("Silakan atur kota terlebih dahulu dengan `!prayers setup`.");
+			}
+
+			const timings = await fetchTimings(config.city, config.country, config.method, config.tune);
+			if (!timings) {
+				throw new Error("Gagal mengambil jadwal sholat. Coba lagi nanti.");
+			}
+
+			const lines: string[] = ["🔔 *Test Notifikasi Jadwal Sholat*\n"];
+			for (const prayer of NOTIFICATION_PRAYERS) {
+				const timeStr = timings[prayer];
+				if (!timeStr) continue;
+				const name = PRAYER_NAMES[prayer] || prayer;
+				lines.push(
+					`*${name}* (${timeStr}):`,
+					`  - 10 menit sebelum: "Waktu *${name}* akan tiba dalam 10 menit (${timeStr})."`,
+					`  - Tepat waktu: "Waktu *${name}* telah tiba."\n`,
+				);
+			}
+
+			return {
+				type: "text",
+				text: lines.join("\n"),
+				quoted: true,
+			};
+		}
+
 		if (!sub) {
 			const config = getConfigStmt.get(user.lidJid) as PrayerConfig | undefined;
 			if (!config || !config.city) {
@@ -348,7 +378,8 @@ export default {
 				"- `!prayers on` — aktifkan notifikasi\n" +
 				"- `!prayers off` — nonaktifkan notifikasi\n" +
 				"- `!prayers setup` — atur kota dan metode\n" +
-				"- `!prayers tune` — sesuaikan waktu sholat",
+				"- `!prayers tune` — sesuaikan waktu sholat\n" +
+				"- `!prayers test` — uji notifikasi",
 		);
 	},
 } satisfies BotPlugin;
