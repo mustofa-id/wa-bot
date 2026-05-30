@@ -71,7 +71,7 @@ elif [[ "$MODE" == "pm2" ]]; then
 	corepack enable
 
 	echo "Installing dependencies…"
-	pnpm install --frozen-lockfile
+	pnpm install --frozen-lockfile --prod --prefer-offline
 
 	echo "Installing pm2 globally…"
 	pnpm add -g pm2
