@@ -210,11 +210,12 @@ export default {
 		"mengatur kota, atau menyesuaikan waktu. Gunakan: `!prayers`, " +
 		"`!prayers on/off`, `!prayers setup`, `!prayers tune`, `!prayers test`",
 	queue: "user",
-	async *run({ args, user }) {
+	async *run({ args, user, chatId, isGroup }) {
 		const sub = args[0];
+		const jid = isGroup ? chatId : user.lidJid;
 
 		if (sub === "setup") {
-			const existing = getConfigStmt.get(user.lidJid) as PrayerConfig | undefined;
+			const existing = getConfigStmt.get(jid) as PrayerConfig | undefined;
 
 			const cityResp = yield prompt({
 				type: "text",
@@ -249,7 +250,7 @@ export default {
 				throw new Error(`Metode tidak valid. Pilih angka dari daftar:\n${methodList}`);
 			}
 
-			upsertConfigStmt.run(user.lidJid, city, country, method, existing?.tune || "0,0,0,0,0,0,0,0,0");
+			upsertConfigStmt.run(jid, city, country, method, existing?.tune || "0,0,0,0,0,0,0,0,0");
 
 			return {
 				type: "text",
@@ -259,12 +260,12 @@ export default {
 		}
 
 		if (sub === "on" || sub === "off") {
-			const config = getConfigStmt.get(user.lidJid) as PrayerConfig | undefined;
+			const config = getConfigStmt.get(jid) as PrayerConfig | undefined;
 			if (!config || !config.city) {
 				throw new Error("Silakan atur kota terlebih dahulu dengan `!prayers setup`.");
 			}
 			const enabled = sub === "on" ? 1 : 0;
-			setEnabledStmt.run(enabled, user.lidJid);
+			setEnabledStmt.run(enabled, jid);
 			return {
 				type: "text",
 				text: enabled ? "Notifikasi jadwal sholat *diaktifkan*." : "Notifikasi jadwal sholat *di-nonaktifkan*.",
@@ -273,7 +274,7 @@ export default {
 		}
 
 		if (sub === "tune") {
-			const config = getConfigStmt.get(user.lidJid) as PrayerConfig | undefined;
+			const config = getConfigStmt.get(jid) as PrayerConfig | undefined;
 			if (!config || !config.city) {
 				throw new Error("Silakan atur kota terlebih dahulu dengan `!prayers setup`.");
 			}
@@ -307,7 +308,7 @@ export default {
 				tune = numbers.join(",");
 			}
 
-			updateTuneStmt.run(tune, user.lidJid);
+			updateTuneStmt.run(tune, jid);
 			return {
 				type: "text",
 				text: `Penyesuaian waktu berhasil disimpan: \n> ${tune}`,
@@ -316,7 +317,7 @@ export default {
 		}
 
 		if (sub === "test") {
-			const config = getConfigStmt.get(user.lidJid) as PrayerConfig | undefined;
+			const config = getConfigStmt.get(jid) as PrayerConfig | undefined;
 			if (!config || !config.city) {
 				throw new Error("Silakan atur kota terlebih dahulu dengan `!prayers setup`.");
 			}
@@ -346,7 +347,7 @@ export default {
 		}
 
 		if (!sub) {
-			const config = getConfigStmt.get(user.lidJid) as PrayerConfig | undefined;
+			const config = getConfigStmt.get(jid) as PrayerConfig | undefined;
 			if (!config || !config.city) {
 				throw new Error("Silakan atur kota terlebih dahulu dengan `!prayers setup`.");
 			}

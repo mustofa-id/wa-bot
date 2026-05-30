@@ -324,8 +324,8 @@ const plugin: BotPlugin = {
 					"- `lusa` / `dayafter` — lusa\n\n" +
 					"*Contoh:*\n" +
 					"- `!reminder 14:30`\n" +
-					"- `!reminder 14.30 2026\u200B-05-28`\n" +
-					"- `!reminder 1430 2805\u200B2026`\n" +
+					"- `!reminder 14.\u200B30 \u200B2026\u200B-05-28`\n" +
+					"- `!reminder 1430\u200B 2805\u200B2026`\n" +
 					"- `!reminder 14:30 besok`",
 			);
 		}
