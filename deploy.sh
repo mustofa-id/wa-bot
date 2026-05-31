@@ -2,9 +2,10 @@
 set -euo pipefail
 
 MODE="${1:-}"
+CPUS="${2:-0.7}"
 
 if [[ -z "$MODE" ]]; then
-	echo "Usage: $0 docker|pm2" >&2
+	echo "Usage: $0 docker [cpus]|pm2" >&2
 	exit 1
 fi
 
@@ -40,7 +41,7 @@ if [[ "$MODE" == "docker" ]]; then
 	chown 1000:1000 "$(pwd)/data" 2>/dev/null || true
 
 	echo "Starting container 'wa-bot'…"
-	docker run -d --cpus="0.7" "${ENV_FLAG[@]}" --name wa-bot -v "$(pwd)/data:/app/data" wa-bot:latest
+	docker run -d --cpus="$CPUS" "${ENV_FLAG[@]}" --name wa-bot -v "$(pwd)/data:/app/data" wa-bot:latest
 
 	echo "Done."
 

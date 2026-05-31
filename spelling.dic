@@ -3,6 +3,7 @@ autoremove
 bestaudio
 bestvideo
 chrono
+cpus
 creds
 dayafter
 dayaftertomorrow
