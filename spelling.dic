@@ -28,6 +28,7 @@ muxing
 nokey
 NOPAUSE
 noprint
+passlogfile
 PDFSETTINGS
 pdfwrite
 pengingat

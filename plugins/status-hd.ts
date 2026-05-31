@@ -112,12 +112,12 @@ async function encodeVideo(inputPath: string, outputPath: string, segmentDuratio
 		(a) => !(Array.isArray(a) && a[0] === "-movflags"),
 	);
 	await ffmpeg(inputPath, {
-		args: [...pass1Args, ["-pass", "1"], ["-an"], ["-f", "null"]],
+		args: [...pass1Args, ["-pass", "1"], ["-passlogfile", "/tmp/ffmpeg2pass"], ["-an"], ["-f", "null"]],
 		outputPath: "/dev/null",
 	});
 
 	const result = await ffmpeg(inputPath, {
-		args: [...getVideoConfig(segmentDuration, bitrateStr), ["-pass", "2"]],
+		args: [...getVideoConfig(segmentDuration, bitrateStr), ["-pass", "2"], ["-passlogfile", "/tmp/ffmpeg2pass"]],
 		outputPath,
 	});
 
