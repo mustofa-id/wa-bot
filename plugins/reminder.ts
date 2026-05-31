@@ -12,6 +12,7 @@ interface ReminderRow extends Record<string, SQLOutputValue> {
 	remind_at: string;
 	done: number;
 	created_at: string;
+	repeat_type: string | null;
 }
 
 const db = await useSqlite("reminders");
@@ -23,14 +24,16 @@ db.exec(`CREATE TABLE IF NOT EXISTS reminders (
   creator_jid TEXT NOT NULL,
   text TEXT NOT NULL,
   remind_at TEXT NOT NULL,
+  repeat_type TEXT DEFAULT NULL,
   done INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`);
 
 const insertStmt = db.prepare(
-	"INSERT INTO reminders (jid, message_id, creator_jid, text, remind_at) VALUES (?, ?, ?, ?, ?)",
+	"INSERT INTO reminders (jid, message_id, creator_jid, text, remind_at, repeat_type) VALUES (?, ?, ?, ?, ?, ?)",
 );
 const markDoneStmt = db.prepare("UPDATE reminders SET done = 1 WHERE id = ?");
+const updateRemindAtStmt = db.prepare("UPDATE reminders SET remind_at = ? WHERE id = ?");
 const selectDueStmt = db.prepare("SELECT * FROM reminders WHERE done = 0 AND remind_at <= datetime('now')");
 const selectByCreatorStmt = db.prepare("SELECT * FROM reminders WHERE creator_jid = ? AND done = 0 ORDER BY remind_at");
 const deleteStmt = db.prepare("DELETE FROM reminders WHERE id = ? AND creator_jid = ?");
@@ -48,7 +51,20 @@ registerTask({
 					quoted: r.message_id || undefined,
 					senderId: r.creator_jid,
 				});
-				markDoneStmt.run(r.id);
+				if (r.repeat_type) {
+					const nextDate = nextRemindAt(new Date(r.remind_at + "Z"), r.repeat_type);
+					if (nextDate) {
+						const nextStr = nextDate
+							.toISOString()
+							.replace("T", " ")
+							.replace(/\.\d{3}Z$/, "");
+						updateRemindAtStmt.run(nextStr, r.id);
+					} else {
+						markDoneStmt.run(r.id);
+					}
+				} else {
+					markDoneStmt.run(r.id);
+				}
 			} catch (e) {
 				console.error("Failed to send reminder", r.id, e);
 			}
@@ -56,12 +72,19 @@ registerTask({
 	},
 });
 
-function addReminder(chatId: string, messageId: string, creatorJid: string, text: string, remindAt: Date): ReminderRow {
+function addReminder(
+	chatId: string,
+	messageId: string,
+	creatorJid: string,
+	text: string,
+	remindAt: Date,
+	repeatType: string | null,
+): ReminderRow {
 	const remindAtStr = remindAt
 		.toISOString()
 		.replace("T", " ")
 		.replace(/\.\d{3}Z$/, "");
-	const { lastInsertRowid } = insertStmt.run(chatId, messageId, creatorJid, text, remindAtStr);
+	const { lastInsertRowid } = insertStmt.run(chatId, messageId, creatorJid, text, remindAtStr, repeatType);
 	const row = db.prepare("SELECT * FROM reminders WHERE id = ?").get(Number(lastInsertRowid));
 	return row as ReminderRow;
 }
@@ -255,10 +278,83 @@ function parseDateTime(timeStr: string, dateStr?: string): Date | null {
 	return toUtc(new Date(wallClockMs), tz());
 }
 
+const dayNames = ["", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+
+function fmtRepeatType(repeatType: string): string {
+	if (repeatType === "daily") return "setiap hari";
+	const [s, e] = repeatType.split("-").map(Number);
+	return `${dayNames[s]}-${dayNames[e]}`;
+}
+
+function nextRemindAt(currentDate: Date, repeatType: string): Date | null {
+	const tzStr = tz();
+	const dateParts = new Intl.DateTimeFormat("en-CA", { timeZone: tzStr }).formatToParts(currentDate);
+	const timeParts = new Intl.DateTimeFormat("en-GB", {
+		timeZone: tzStr,
+		hour: "2-digit",
+		minute: "2-digit",
+		hour12: false,
+	}).formatToParts(currentDate);
+
+	const year = getPart(dateParts, "year");
+	const month = getPart(dateParts, "month");
+	const day = getPart(dateParts, "day");
+	const hour = getPart(timeParts, "hour");
+	const minute = getPart(timeParts, "minute");
+
+	if (repeatType === "daily") {
+		const nextDay = new Date(Date.UTC(year, month - 1, day + 1, hour, minute));
+		return toUtc(nextDay, tzStr);
+	}
+
+	const [start, end] = repeatType.split("-").map(Number);
+	for (let offset = 1; offset <= 14; offset++) {
+		const d = new Date(Date.UTC(year, month - 1, day + offset));
+		const isoWd = d.getUTCDay() === 0 ? 7 : d.getUTCDay();
+		if (isoWd >= start && isoWd <= end) {
+			const wallClockMs = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), hour, minute);
+			return toUtc(new Date(wallClockMs), tzStr);
+		}
+	}
+	return null;
+}
+
+function firstRepeatOccurrence(timeStr: string, repeatType: string): Date | null {
+	const tzStr = tz();
+	const time = parseTime(timeStr);
+	if (!time) return null;
+
+	const { year, month, day } = todayInTz();
+
+	if (repeatType === "daily") {
+		const wallClockMs = Date.UTC(year, month - 1, day, time.hour, time.minute);
+		const todayDate = toUtc(new Date(wallClockMs), tzStr);
+		if (todayDate && todayDate.getTime() > Date.now()) return todayDate;
+		const nextDay = offsetDate({ year, month, day }, 1);
+		const nextWallClock = Date.UTC(nextDay.year, nextDay.month - 1, nextDay.day, time.hour, time.minute);
+		return toUtc(new Date(nextWallClock), tzStr);
+	}
+
+	const [start, end] = repeatType.split("-").map(Number);
+	for (let offset = 0; offset < 14; offset++) {
+		const d = offsetDate({ year, month, day }, offset);
+		const dow = new Date(Date.UTC(d.year, d.month - 1, d.day)).getUTCDay();
+		const isoWd = dow === 0 ? 7 : dow;
+		if (isoWd >= start && isoWd <= end) {
+			const wallClockMs = Date.UTC(d.year, d.month - 1, d.day, time.hour, time.minute);
+			const date = toUtc(new Date(wallClockMs), tzStr);
+			if (date && date.getTime() > Date.now()) return date;
+		}
+	}
+	return null;
+}
+
 const plugin: BotPlugin = {
 	command: "!reminder",
 	description:
-		"Membuat pengingat dari quoted atau prompt, atau kelola pengingat. Gunakan: `!reminder <jam> [tanggal]`, `!reminder ls`, `!reminder rm <id>`",
+		"Membuat pengingat dari quoted atau prompt, atau kelola pengingat. " +
+		"Gunakan: `!reminder <jam> [tanggal]`, `!reminder <jam> repeat [hari]`, " +
+		"`!reminder ls`, `!reminder rm <id>`",
 	queue: "user",
 	async *run({ args, user, quoted, chatId }) {
 		const sub = args[0];
@@ -268,7 +364,12 @@ const plugin: BotPlugin = {
 			if (reminders.length === 0) {
 				return { type: "text", text: "Tidak ada pengingat yang akan datang.", quoted: true };
 			}
-			const lines = reminders.map((r) => `- \`#${r.id}\` pada ${fmtDateString(r.remind_at)}: \n"${r.text}"`);
+			const lines = reminders.map((r) => {
+				const timeDesc = r.repeat_type
+					? `${fmtRepeatType(r.repeat_type)}, berikutnya: ${fmtDateString(r.remind_at)}`
+					: `pada ${fmtDateString(r.remind_at)}`;
+				return `- \`#${r.id}\` ${timeDesc}: \n"${r.text}"`;
+			});
 			return {
 				type: "text",
 				text: `*Pengingat yang akan datang (${reminders.length}):*\n${lines.join("\n\n")}`,
@@ -293,18 +394,44 @@ const plugin: BotPlugin = {
 		}
 
 		const timeStr = sub;
-		const dateStr = args[1];
+		let dateStr: string | undefined;
+		let repeatType: string | null = null;
 
 		if (!timeStr) {
 			throw new Error(
 				"Gunakan:\n" +
 					"- `!reminder <jam> [tanggal]` — buat pengingat baru\n" +
+					"- `!reminder <jam> repeat [hari]` — buat pengingat berulang\n" +
 					"- `!reminder ls` — lihat semua pengingat\n" +
 					"- `!reminder rm <id>` — hapus pengingat",
 			);
 		}
 
-		const remindAt = parseDateTime(timeStr, dateStr);
+		if (args[1] === "repeat") {
+			repeatType = "daily";
+			if (args[2]) {
+				if (/^[1-7]-[1-7]$/.test(args[2])) {
+					const [s, e] = args[2].split("-").map(Number);
+					if (s < e) {
+						repeatType = args[2];
+					} else {
+						throw new Error("Rentang hari tidak valid.");
+					}
+				} else {
+					throw new Error("Format hari tidak valid. Gunakan format seperti `1-5`.");
+				}
+			}
+		} else {
+			dateStr = args[1];
+		}
+
+		let remindAt: Date | null;
+		if (repeatType) {
+			remindAt = firstRepeatOccurrence(timeStr, repeatType);
+		} else {
+			remindAt = parseDateTime(timeStr, dateStr);
+		}
+
 		if (!remindAt) {
 			throw new Error(
 				// \u200B is invisible space char to prevent number being formatted as phone
@@ -342,16 +469,40 @@ const plugin: BotPlugin = {
 			reminderMessageId = id;
 		}
 
-		addReminder(chatId, reminderMessageId, user.lidJid, reminderText, remindAt);
+		addReminder(chatId, reminderMessageId, user.lidJid, reminderText, remindAt, repeatType);
 
-		const reminderDateTime = fmtDateString(remindAt);
+		let responseText: string;
+		if (repeatType === "daily") {
+			const t = parseTime(timeStr);
+			const timeFmt = `${String(t!.hour).padStart(2, "0")}.${String(t!.minute).padStart(2, "0")}`;
+			responseText = `Pengingat dibuat: setiap hari pukul ${timeFmt}`;
+		} else if (repeatType) {
+			const t = parseTime(timeStr);
+			const timeFmt = `${String(t!.hour).padStart(2, "0")}.${String(t!.minute).padStart(2, "0")}`;
+			responseText = `Pengingat dibuat: ${fmtRepeatType(repeatType)} pukul ${timeFmt}`;
+		} else {
+			responseText = `Pengingat dibuat untuk: \n> ${fmtDateString(remindAt)}`;
+		}
+
 		return {
 			type: "text",
-			text: `Pengingat dibuat untuk: \n> ${reminderDateTime}`,
+			text: responseText,
 			quoted: true,
 		};
 	},
 };
 
 export default plugin;
-export { dateAliases, offsetDate, parseDate, parseDateTime, parseTime, todayInTz, toUtc, tz };
+export {
+	dateAliases,
+	firstRepeatOccurrence,
+	fmtRepeatType,
+	nextRemindAt,
+	offsetDate,
+	parseDate,
+	parseDateTime,
+	parseTime,
+	todayInTz,
+	toUtc,
+	tz,
+};
