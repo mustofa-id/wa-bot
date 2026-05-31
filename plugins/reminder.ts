@@ -487,7 +487,7 @@ const plugin: BotPlugin = {
 		return {
 			type: "text",
 			text: responseText,
-			quoted: reminderMessageId,
+			quoted: reminderMessageId || true,
 		};
 	},
 };
