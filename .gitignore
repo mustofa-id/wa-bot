@@ -1,6 +1,5 @@
-data
-.wwebjs_cache
 node_modules
-.env
-.env.*
+.env*
 !.env.example
+/data
+*.db

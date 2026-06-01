@@ -1,32 +1,48 @@
-FROM ghcr.io/puppeteer/puppeteer:25.0.4
+# syntax = docker/dockerfile:1
 
-USER root
+FROM node:24.16-slim AS base
 
-RUN apt-get update && apt-get install -y \
-    tzdata \
+# ------- System Dependencies -------
+
+# Layer 1 — stable system deps (rarely invalidated)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    ghostscript \
     python3 \
     python3-pip \
-    && pip3 install --break-system-packages --no-cache-dir -U yt-dlp \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-ENV TZ=Asia/Jakarta
+# Layer 2 — Python tools (pdf2docx for PDF→DOCX, yt-dlp for media downloads)
+RUN pip3 install --break-system-packages --no-cache-dir yt-dlp pdf2docx && \
+    yt-dlp --version && pdf2docx --help > /dev/null
+
+# ------- Application -------
 
 WORKDIR /app
 
-# Dependency manifests first — this layer only busts when deps change
+# Enable pnpm via Corepack (pin to version used in this project)
+RUN corepack enable && corepack prepare pnpm@11.2.2 --activate
+
+# Copy dependency manifests first (leverages Docker cache)
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN corepack enable pnpm && pnpm i --prefer-offline --prod && mkdir data
 
-# Source code (changes more frequently, won't bust the install cache)
-COPY i18n/ ./i18n/
-COPY migrations/ ./migrations/
-COPY app.js ./
+# Install production dependencies only
+RUN pnpm install --frozen-lockfile --prod
 
-# hard to handle permission with this :')
-# USER pptruser
+# Copy source files needed to run
+COPY main.ts ./
+COPY plugins/ ./plugins/
+COPY lib/ ./lib/
 
-CMD ["node", "app.js"]
+# Run as non-root user for security
+USER node
 
-# build: docker build -t wa-bot:latest .
-# run: docker run -d --cpus="0.7" --env-file .env --name wa-bot -v $(pwd)/data:/app/data wa-bot:latest
+# Data directory (bind-mount this for persistence)
+# The default resolves to /app/data when running from /app
+# Example: docker run -v /host/data:/app/data ...
+ENV DATA_DIR=
+
+# No EXPOSE needed — this is a WhatsApp bot, no HTTP server
+
+CMD ["node", "main.ts"]

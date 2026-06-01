@@ -1,0 +1,12 @@
+{
+	"compilerOptions": {
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"target": "esnext",
+		"allowImportingTsExtensions": true,
+		"emitDeclarationOnly": true,
+		"declaration": true,
+		"checkJs": true
+	},
+	"exclude": ["node_modules", "**/node_modules/*"]
+}
