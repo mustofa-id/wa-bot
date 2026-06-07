@@ -11,9 +11,9 @@ const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp"]);
 const VIDEO_EXTS = new Set([".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"]);
 
 const ffmpegModeConfigs = {
-	gentle: { threads: "2", preset: "veryfast", bufsize: "1M", maxMuxingQueueSize: "1024" },
-	balance: { threads: "4", preset: "faster", bufsize: "4M", maxMuxingQueueSize: "2048" },
-	performance: { threads: "0", preset: "ultrafast", bufsize: "8M", maxMuxingQueueSize: "4096" },
+	gentle: { threads: "2", preset: "fast", bufsize: "1M", maxMuxingQueueSize: "2048" },
+	balance: { threads: "4", preset: "medium", bufsize: "4M", maxMuxingQueueSize: "4096" },
+	performance: { threads: "0", preset: "veryfast", bufsize: "8M", maxMuxingQueueSize: "8192" },
 } as const;
 
 function getVideoConfig(segmentDuration = 0, bitrate?: string) {
@@ -32,7 +32,7 @@ function getVideoConfig(segmentDuration = 0, bitrate?: string) {
 			? [
 					["-b:v", bitrate],
 					["-maxrate", `${Math.floor(Number(bitrate.replace("k", "")) * 1.5)}k`],
-					["-bufsize", `${Math.floor(Number(bitrate.replace("k", "")) * 2)}k`],
+					["-bufsize", `${Math.floor(Number(bitrate.replace("k", "")) * 3)}k`],
 				]
 			: [
 					["-crf", "20"],
