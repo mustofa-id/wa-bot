@@ -146,7 +146,17 @@ async function splitPassthrough(
 			} as BotPluginResult);
 		}
 	} else {
-		results.push({ type: "video", filePath: inputPath, quoted: true } as BotPluginResult);
+		const ext = extname(inputPath);
+		const outputPath = join(workDir, `${prefix}_faststart${ext}`);
+		await ffmpeg(inputPath, {
+			args: [
+				["-c", "copy"],
+				["-movflags", "+faststart"],
+			],
+			outputPath,
+		});
+		cleanupPaths.push(outputPath);
+		results.push({ type: "video", filePath: outputPath, quoted: true } as BotPluginResult);
 	}
 
 	return { results, cleanupPaths };
@@ -177,6 +187,7 @@ async function splitVideo(
 				...(start > 0 ? ["-ss", String(start)] : []),
 				["-t", String(segDuration)],
 				["-c", "copy"],
+				["-movflags", "+faststart"],
 				...(start === 0 ? ["-avoid_negative_ts", "make_zero"] : []),
 			],
 			outputPath: segments[i],
