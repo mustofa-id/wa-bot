@@ -25,30 +25,23 @@ const VIDEO_CODEC_ARGS = [
 ] as const;
 
 const ffmpegModeConfigs = {
-	gentle: { threads: "2", preset: "fast", bufsize: "1M", maxMuxingQueueSize: "2048" },
-	balance: { threads: "4", preset: "medium", bufsize: "4M", maxMuxingQueueSize: "4096" },
-	performance: { threads: "0", preset: "veryfast", bufsize: "8M", maxMuxingQueueSize: "8192" },
+	gentle: { threads: "2", preset: "fast", maxMuxingQueueSize: "2048" },
+	balance: { threads: "4", preset: "medium", maxMuxingQueueSize: "4096" },
+	performance: { threads: "0", preset: "veryfast", maxMuxingQueueSize: "8192" },
 } as const;
 
-function getVideoConfig(segmentDuration = 0, bitrate?: string) {
+function getVideoConfig(segmentDuration = 0, bitrate: string) {
 	const rawMode = process.env.FFMPEG_MODE || "balance";
 	const mode = rawMode in ffmpegModeConfigs ? (rawMode as keyof typeof ffmpegModeConfigs) : "balance";
 	const c = ffmpegModeConfigs[mode];
+	const bps = Number(bitrate.replace("k", ""));
 	const args = [
 		["-movflags", "+faststart"],
 		["-vf", "scale=1080:-2:flags=bilinear,fps=30"],
 		...VIDEO_CODEC_ARGS,
-		...(bitrate
-			? [
-					["-b:v", bitrate],
-					["-maxrate", `${Math.floor(Number(bitrate.replace("k", "")) * 1.5)}k`],
-					["-bufsize", `${Math.floor(Number(bitrate.replace("k", "")) * 3)}k`],
-				]
-			: [
-					["-crf", "20"],
-					["-maxrate", "3M"],
-					["-bufsize", c.bufsize],
-				]),
+		["-b:v", bitrate],
+		["-maxrate", `${Math.floor(bps * 1.5)}k`],
+		["-bufsize", `${Math.floor(bps * 3)}k`],
 		...AUDIO_CODEC_ARGS,
 		["-threads", c.threads],
 		["-preset", c.preset],
