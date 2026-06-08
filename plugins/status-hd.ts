@@ -4,7 +4,7 @@ import { extname, join } from "node:path";
 
 const MAX_VIDEO_DURATION = 90; // per-status
 const MAX_URL_ITEMS = 10;
-const TARGET_SIZE_BYTES = 20 * 1024 * 1024;
+const TARGET_SIZE_BYTES = 25 * 1024 * 1024;
 const AUDIO_BITRATE_KBPS = 64;
 const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp"]);
 const VIDEO_EXTS = new Set([".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"]);
