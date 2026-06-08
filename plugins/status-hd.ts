@@ -181,13 +181,12 @@ async function splitVideo(
 		const segDuration = Math.min(segmentDuration, duration - start);
 
 		await ffmpeg(inputPath, {
-			preInputArgs: start === 0 ? ["-ss", "0"] : undefined,
+			preInputArgs: ["-ss", String(start)],
 			args: [
-				...(start > 0 ? ["-ss", String(start)] : []),
 				["-t", String(segDuration)],
 				["-c", "copy"],
 				["-movflags", "+faststart"],
-				...(start === 0 ? ["-avoid_negative_ts", "make_zero"] : []),
+				["-avoid_negative_ts", "make_zero"],
 			],
 			outputPath: segments[i],
 		});
