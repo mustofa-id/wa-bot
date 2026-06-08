@@ -1,48 +1,48 @@
-import { cleanUp, ffmpeg, ffprobe, getDataDir, ytdlp } from "#lib/utils.ts";
+import { cleanUp, ffmpeg, ffprobe, fmtDuration, getDataDir, ytdlp } from "#lib/utils.ts";
 import { mkdir, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 
-// actually each video status is 90s length, but this is just for anticipate.
-const MAX_VIDEO_DURATION = 89;
+const MAX_VIDEO_DURATION = 90; // per-status
 const MAX_URL_ITEMS = 10;
-const TARGET_SIZE_BYTES = 30 * 1024 * 1024;
+const TARGET_SIZE_BYTES = 20 * 1024 * 1024;
 const AUDIO_BITRATE_KBPS = 64;
+const CRF_PASSTHROUGH = 26;
+const PASSTHROUGH_PRESET = "fast";
 const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp"]);
 const VIDEO_EXTS = new Set([".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"]);
 
+const AUDIO_CODEC_ARGS = [
+	["-c:a", "aac"],
+	["-b:a", "64k"],
+	["-ar", "48000"],
+	["-ac", "2"],
+] as const;
+const VIDEO_CODEC_ARGS = [
+	["-c:v", "libx264"],
+	["-profile:v", "high"],
+	["-level", "4.1"],
+	["-pix_fmt", "yuv420p"],
+] as const;
+
 const ffmpegModeConfigs = {
-	gentle: { threads: "2", preset: "veryfast", bufsize: "1M", maxMuxingQueueSize: "1024" },
-	balance: { threads: "4", preset: "faster", bufsize: "4M", maxMuxingQueueSize: "2048" },
-	performance: { threads: "0", preset: "ultrafast", bufsize: "8M", maxMuxingQueueSize: "4096" },
+	gentle: { threads: "2", preset: "fast", maxMuxingQueueSize: "2048" },
+	balance: { threads: "4", preset: "medium", maxMuxingQueueSize: "4096" },
+	performance: { threads: "0", preset: "veryfast", maxMuxingQueueSize: "8192" },
 } as const;
 
-function getVideoConfig(segmentDuration = 0, bitrate?: string) {
+function getVideoConfig(segmentDuration = 0, bitrate: string) {
 	const rawMode = process.env.FFMPEG_MODE || "balance";
 	const mode = rawMode in ffmpegModeConfigs ? (rawMode as keyof typeof ffmpegModeConfigs) : "balance";
 	const c = ffmpegModeConfigs[mode];
+	const bps = Number(bitrate.replace("k", ""));
 	const args = [
 		["-movflags", "+faststart"],
-		["-vf", "scale=1080:-2:flags=lanczos,fps=30"],
-		["-r", "30"],
-		["-c:v", "libx264"],
-		["-profile:v", "high"],
-		["-level", "4.1"],
-		["-pix_fmt", "yuv420p"],
-		...(bitrate
-			? [
-					["-b:v", bitrate],
-					["-maxrate", `${Math.floor(Number(bitrate.replace("k", "")) * 1.5)}k`],
-					["-bufsize", `${Math.floor(Number(bitrate.replace("k", "")) * 2)}k`],
-				]
-			: [
-					["-crf", "20"],
-					["-maxrate", "3M"],
-					["-bufsize", c.bufsize],
-				]),
-		["-c:a", "aac"],
-		["-b:a", "64k"],
-		["-ar", "48000"],
-		["-ac", "2"],
+		["-vf", "scale=1080:-2:flags=bilinear,fps=30"],
+		...VIDEO_CODEC_ARGS,
+		["-b:v", bitrate],
+		["-maxrate", `${Math.floor(bps * 1.5)}k`],
+		["-bufsize", `${Math.floor(bps * 3)}k`],
+		...AUDIO_CODEC_ARGS,
 		["-threads", c.threads],
 		["-preset", c.preset],
 		["-max_muxing_queue_size", c.maxMuxingQueueSize],
@@ -101,6 +101,33 @@ function canPassthrough(info: VideoInfo): boolean {
 	return maxDim >= 1080;
 }
 
+async function buildVideoResults(
+	encodedPath: string,
+	workDir: string,
+	prefix: string,
+): Promise<{ results: BotPluginResult[]; cleanupPaths: string[] }> {
+	const duration = await getVideoDuration(encodedPath);
+	const cleanupPaths: string[] = [encodedPath];
+	const results: BotPluginResult[] = [];
+
+	if (duration > MAX_VIDEO_DURATION) {
+		const segmentPaths = await splitVideo(encodedPath, MAX_VIDEO_DURATION, workDir, `${prefix}_seg`, ".mp4");
+		cleanupPaths.push(...segmentPaths);
+		for (const [i, seg] of segmentPaths.entries()) {
+			results.push({
+				type: "video",
+				filePath: seg,
+				quoted: true,
+				caption: `Bagian ${i + 1}/${segmentPaths.length}`,
+			} as BotPluginResult);
+		}
+	} else {
+		results.push({ type: "video", filePath: encodedPath, quoted: true } as BotPluginResult);
+	}
+
+	return { results, cleanupPaths };
+}
+
 async function encodeVideo(inputPath: string, outputPath: string, segmentDuration: number): Promise<string> {
 	const duration = await getVideoDuration(inputPath);
 	const totalTarget = Math.floor(TARGET_SIZE_BYTES * (duration / segmentDuration));
@@ -124,42 +151,24 @@ async function encodeVideo(inputPath: string, outputPath: string, segmentDuratio
 	return result;
 }
 
-async function splitPassthrough(
+async function compressPassthrough(
 	inputPath: string,
 	workDir: string,
 	prefix: string,
 ): Promise<{ results: BotPluginResult[]; cleanupPaths: string[] }> {
-	const duration = await getVideoDuration(inputPath);
-	const cleanupPaths: string[] = [];
-	const results: BotPluginResult[] = [];
+	const encodedPath = join(workDir, `${prefix}_crf.mp4`);
+	await ffmpeg(inputPath, {
+		args: [
+			...VIDEO_CODEC_ARGS,
+			["-crf", String(CRF_PASSTHROUGH)],
+			["-preset", PASSTHROUGH_PRESET],
+			...AUDIO_CODEC_ARGS,
+			["-movflags", "+faststart"],
+		],
+		outputPath: encodedPath,
+	});
 
-	if (duration > MAX_VIDEO_DURATION) {
-		const ext = extname(inputPath);
-		const segmentPaths = await splitVideo(inputPath, MAX_VIDEO_DURATION, workDir, `${prefix}_seg`, ext);
-		cleanupPaths.push(...segmentPaths);
-		for (const [i, seg] of segmentPaths.entries()) {
-			results.push({
-				type: "video",
-				filePath: seg,
-				quoted: true,
-				caption: `Bagian ${i + 1}/${segmentPaths.length}`,
-			} as BotPluginResult);
-		}
-	} else {
-		const ext = extname(inputPath);
-		const outputPath = join(workDir, `${prefix}_faststart${ext}`);
-		await ffmpeg(inputPath, {
-			args: [
-				["-c", "copy"],
-				["-movflags", "+faststart"],
-			],
-			outputPath,
-		});
-		cleanupPaths.push(outputPath);
-		results.push({ type: "video", filePath: outputPath, quoted: true } as BotPluginResult);
-	}
-
-	return { results, cleanupPaths };
+	return buildVideoResults(encodedPath, workDir, prefix);
 }
 
 async function splitVideo(
@@ -182,13 +191,12 @@ async function splitVideo(
 		const segDuration = Math.min(segmentDuration, duration - start);
 
 		await ffmpeg(inputPath, {
-			preInputArgs: start === 0 ? ["-ss", "0"] : undefined,
+			preInputArgs: ["-ss", String(start)],
 			args: [
-				...(start > 0 ? ["-ss", String(start)] : []),
 				["-t", String(segDuration)],
 				["-c", "copy"],
 				["-movflags", "+faststart"],
-				...(start === 0 ? ["-avoid_negative_ts", "make_zero"] : []),
+				["-avoid_negative_ts", "make_zero"],
 			],
 			outputPath: segments[i],
 		});
@@ -214,29 +222,12 @@ async function processFile(
 	} else {
 		const info = await getVideoInfo(inputPath);
 		if (canPassthrough(info)) {
-			return splitPassthrough(inputPath, workDir, prefix);
+			return compressPassthrough(inputPath, workDir, prefix);
 		}
 
 		const outputPath = join(workDir, `${prefix}_hd.mp4`);
 		const result = await encodeVideo(inputPath, outputPath, MAX_VIDEO_DURATION);
-		cleanupPaths.push(result);
-
-		const duration = await getVideoDuration(result);
-		if (duration > MAX_VIDEO_DURATION) {
-			const segmentPaths = await splitVideo(result, MAX_VIDEO_DURATION, workDir, `${prefix}_seg`, ".mp4");
-			cleanupPaths.push(...segmentPaths);
-
-			for (const [i, seg] of segmentPaths.entries()) {
-				results.push({
-					type: "video",
-					filePath: seg,
-					quoted: true,
-					caption: `Bagian ${i + 1}/${segmentPaths.length}`,
-				} as BotPluginResult);
-			}
-		} else {
-			results.push({ type: "video", filePath: result, quoted: true } as BotPluginResult);
-		}
+		return buildVideoResults(result, workDir, prefix);
 	}
 
 	return { results, cleanupPaths };
@@ -252,6 +243,8 @@ export default {
 		const url = args[0];
 
 		if (url?.startsWith("http")) {
+			const t0 = Date.now();
+
 			yield {
 				type: "text",
 				text: "Mohon tunggu, sedang mengunduh...",
@@ -318,7 +311,10 @@ export default {
 					processedCount++;
 				}
 
-				yield { type: "text", text: "Semoga kamu suka hasilnya" };
+				yield {
+					type: "text",
+					text: `Selesai dalam ${fmtDuration(Date.now() - t0)}. Semoga kamu suka hasilnya`,
+				};
 			} finally {
 				cleanUp(...cleanupPaths);
 			}
@@ -355,6 +351,7 @@ export default {
 
 		await writeFile(inputPath, buffer);
 
+		const t0 = Date.now();
 		const cleanupPaths: string[] = [inputPath];
 
 		try {
@@ -362,7 +359,7 @@ export default {
 			cleanupPaths.push(...cp);
 			for (const r of results) yield r;
 
-			yield { type: "text", text: "Semoga kamu suka hasilnya" };
+			yield { type: "text", text: `Selesai dalam ${fmtDuration(Date.now() - t0)}. Semoga kamu suka hasilnya` };
 		} finally {
 			cleanUp(...cleanupPaths);
 		}

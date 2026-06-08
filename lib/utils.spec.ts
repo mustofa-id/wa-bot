@@ -4,6 +4,7 @@ import {
 	delay,
 	ffmpeg,
 	ffprobe,
+	fmtDuration,
 	getDataDir,
 	ghostScript,
 	normalizePhone,
@@ -207,6 +208,44 @@ describe("normalizePhone", () => {
 
 	it("returns empty for empty input", () => {
 		assert.equal(normalizePhone(""), "");
+	});
+});
+
+describe("fmtDuration", () => {
+	it('0ms returns "0d"', () => {
+		assert.equal(fmtDuration(0), "0d");
+	});
+
+	it('999ms returns "0d" (truncated)', () => {
+		assert.equal(fmtDuration(999), "0d");
+	});
+
+	it('1000ms returns "1d"', () => {
+		assert.equal(fmtDuration(1000), "1d");
+	});
+
+	it('60_000ms returns "1m"', () => {
+		assert.equal(fmtDuration(60_000), "1m");
+	});
+
+	it('61_000ms returns "1m 1d"', () => {
+		assert.equal(fmtDuration(61_000), "1m 1d");
+	});
+
+	it('3_600_000ms returns "1j"', () => {
+		assert.equal(fmtDuration(3_600_000), "1j");
+	});
+
+	it('3_661_000ms returns "1j 1m 1d"', () => {
+		assert.equal(fmtDuration(3_661_000), "1j 1m 1d");
+	});
+
+	it('123_456ms returns "2m 3d"', () => {
+		assert.equal(fmtDuration(123_456), "2m 3d");
+	});
+
+	it('9_999_999ms returns "2j 46m 39d"', () => {
+		assert.equal(fmtDuration(9_999_999), "2j 46m 39d");
 	});
 });
 

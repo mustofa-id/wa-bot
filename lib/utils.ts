@@ -5,7 +5,7 @@ import { basename, dirname, extname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import timers from "node:timers/promises";
 
-type RunArgs = (string | string[])[];
+type RunArgs = readonly (string | readonly string[])[];
 
 export function run(cmd: string, args: RunArgs): Promise<{ stdout: string; stderr: string }> {
 	return new Promise((resolve, reject) => {
@@ -218,4 +218,16 @@ export function stripDeviceSuffix(jid: string): string {
 /** Normalize phone input to WhatsApp format: no +, no leading 0, no non-digits. */
 export function normalizePhone(input: string): string {
 	return input.replace(/^\+/, "").replace(/^0+/, "").replace(/\D/g, "");
+}
+
+/** Format milliseconds to a human-readable duration string. */
+export function fmtDuration(ms: number): string {
+	const s = Math.floor(ms / 1000);
+	const m = Math.floor(s / 60);
+	const h = Math.floor(m / 60);
+	const parts: string[] = [];
+	if (h > 0) parts.push(`${h}j`);
+	if (m % 60 > 0) parts.push(`${m % 60}m`);
+	if (s % 60 > 0 || parts.length === 0) parts.push(`${s % 60}d`);
+	return parts.join(" ");
 }
