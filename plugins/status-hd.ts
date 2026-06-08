@@ -224,9 +224,8 @@ async function processFile(
 			return splitPassthrough(inputPath, workDir, prefix);
 		}
 
-		const maxDim = Math.max(info.width ?? 0, info.height ?? 0);
 		const outputPath = join(workDir, `${prefix}_hd.mp4`);
-		const result = await encodeVideo(inputPath, outputPath, MAX_VIDEO_DURATION, maxDim <= 1080);
+		const result = await encodeVideo(inputPath, outputPath, MAX_VIDEO_DURATION, info.width! <= 1080);
 		cleanupPaths.push(result);
 
 		const duration = await getVideoDuration(result);
