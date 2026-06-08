@@ -15,14 +15,14 @@ const ffmpegModeConfigs = {
 	performance: { threads: "0", preset: "veryfast", bufsize: "8M", maxMuxingQueueSize: "8192" },
 } as const;
 
-function getVideoConfig(segmentDuration = 0, bitrate?: string) {
+function getVideoConfig(segmentDuration = 0, bitrate?: string, skipVf?: boolean) {
 	const rawMode = process.env.FFMPEG_MODE || "balance";
 	const mode = rawMode in ffmpegModeConfigs ? (rawMode as keyof typeof ffmpegModeConfigs) : "balance";
 	const c = ffmpegModeConfigs[mode];
+	const vf = skipVf ? [] : [["-vf", "scale=1080:-2:flags=bilinear,fps=30"]];
 	const args = [
 		["-movflags", "+faststart"],
-		["-vf", "scale=1080:-2:flags=lanczos,fps=30"],
-		["-r", "30"],
+		...vf,
 		["-c:v", "libx264"],
 		["-profile:v", "high"],
 		["-level", "4.1"],
@@ -100,14 +100,19 @@ function canPassthrough(info: VideoInfo): boolean {
 	return maxDim >= 1080;
 }
 
-async function encodeVideo(inputPath: string, outputPath: string, segmentDuration: number): Promise<string> {
+async function encodeVideo(
+	inputPath: string,
+	outputPath: string,
+	segmentDuration: number,
+	skipVf?: boolean,
+): Promise<string> {
 	const duration = await getVideoDuration(inputPath);
 	const totalTarget = Math.floor(TARGET_SIZE_BYTES * (duration / segmentDuration));
 	const totalBitrate = Math.floor((totalTarget * 8) / duration / 1000);
 	const videoBitrate = Math.max(totalBitrate - AUDIO_BITRATE_KBPS, 50);
 	const bitrateStr = `${videoBitrate}k`;
 
-	const pass1Args = getVideoConfig(segmentDuration, bitrateStr).filter(
+	const pass1Args = getVideoConfig(segmentDuration, bitrateStr, skipVf).filter(
 		(a) => !(Array.isArray(a) && a[0] === "-movflags"),
 	);
 	await ffmpeg(inputPath, {
@@ -116,7 +121,11 @@ async function encodeVideo(inputPath: string, outputPath: string, segmentDuratio
 	});
 
 	const result = await ffmpeg(inputPath, {
-		args: [...getVideoConfig(segmentDuration, bitrateStr), ["-pass", "2"], ["-passlogfile", "/tmp/ffmpeg2pass"]],
+		args: [
+			...getVideoConfig(segmentDuration, bitrateStr, skipVf),
+			["-pass", "2"],
+			["-passlogfile", "/tmp/ffmpeg2pass"],
+		],
 		outputPath,
 	});
 
@@ -215,8 +224,9 @@ async function processFile(
 			return splitPassthrough(inputPath, workDir, prefix);
 		}
 
+		const maxDim = Math.max(info.width ?? 0, info.height ?? 0);
 		const outputPath = join(workDir, `${prefix}_hd.mp4`);
-		const result = await encodeVideo(inputPath, outputPath, MAX_VIDEO_DURATION);
+		const result = await encodeVideo(inputPath, outputPath, MAX_VIDEO_DURATION, maxDim <= 1080);
 		cleanupPaths.push(result);
 
 		const duration = await getVideoDuration(result);
