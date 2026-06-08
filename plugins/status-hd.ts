@@ -2,8 +2,7 @@ import { cleanUp, ffmpeg, ffprobe, getDataDir, ytdlp } from "#lib/utils.ts";
 import { mkdir, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 
-// actually each video status is 90s length, but this is just for anticipate.
-const MAX_VIDEO_DURATION = 89;
+const MAX_VIDEO_DURATION = 90; // per-status
 const MAX_URL_ITEMS = 10;
 const TARGET_SIZE_BYTES = 20 * 1024 * 1024;
 const AUDIO_BITRATE_KBPS = 64;
