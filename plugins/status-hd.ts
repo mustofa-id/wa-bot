@@ -6,6 +6,8 @@ const MAX_VIDEO_DURATION = 90; // per-status
 const MAX_URL_ITEMS = 10;
 const TARGET_SIZE_BYTES = 20 * 1024 * 1024;
 const AUDIO_BITRATE_KBPS = 64;
+const CRF_PASSTHROUGH = 26;
+const PASSTHROUGH_PRESET = "fast";
 const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp"]);
 const VIDEO_EXTS = new Set([".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"]);
 
@@ -122,7 +124,7 @@ async function encodeVideo(inputPath: string, outputPath: string, segmentDuratio
 	return result;
 }
 
-async function splitPassthrough(
+async function compressPassthrough(
 	inputPath: string,
 	workDir: string,
 	prefix: string,
@@ -131,9 +133,28 @@ async function splitPassthrough(
 	const cleanupPaths: string[] = [];
 	const results: BotPluginResult[] = [];
 
+	const ext = ".mp4";
+	const encodedPath = join(workDir, `${prefix}_crf${ext}`);
+	await ffmpeg(inputPath, {
+		args: [
+			["-c:v", "libx264"],
+			["-crf", String(CRF_PASSTHROUGH)],
+			["-preset", PASSTHROUGH_PRESET],
+			["-profile:v", "high"],
+			["-level", "4.1"],
+			["-pix_fmt", "yuv420p"],
+			["-c:a", "aac"],
+			["-b:a", "64k"],
+			["-ar", "48000"],
+			["-ac", "2"],
+			["-movflags", "+faststart"],
+		],
+		outputPath: encodedPath,
+	});
+	cleanupPaths.push(encodedPath);
+
 	if (duration > MAX_VIDEO_DURATION) {
-		const ext = extname(inputPath);
-		const segmentPaths = await splitVideo(inputPath, MAX_VIDEO_DURATION, workDir, `${prefix}_seg`, ext);
+		const segmentPaths = await splitVideo(encodedPath, MAX_VIDEO_DURATION, workDir, `${prefix}_seg`, ext);
 		cleanupPaths.push(...segmentPaths);
 		for (const [i, seg] of segmentPaths.entries()) {
 			results.push({
@@ -144,17 +165,7 @@ async function splitPassthrough(
 			} as BotPluginResult);
 		}
 	} else {
-		const ext = extname(inputPath);
-		const outputPath = join(workDir, `${prefix}_faststart${ext}`);
-		await ffmpeg(inputPath, {
-			args: [
-				["-c", "copy"],
-				["-movflags", "+faststart"],
-			],
-			outputPath,
-		});
-		cleanupPaths.push(outputPath);
-		results.push({ type: "video", filePath: outputPath, quoted: true } as BotPluginResult);
+		results.push({ type: "video", filePath: encodedPath, quoted: true } as BotPluginResult);
 	}
 
 	return { results, cleanupPaths };
@@ -211,7 +222,7 @@ async function processFile(
 	} else {
 		const info = await getVideoInfo(inputPath);
 		if (canPassthrough(info)) {
-			return splitPassthrough(inputPath, workDir, prefix);
+			return compressPassthrough(inputPath, workDir, prefix);
 		}
 
 		const outputPath = join(workDir, `${prefix}_hd.mp4`);
