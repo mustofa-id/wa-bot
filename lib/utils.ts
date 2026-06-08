@@ -219,3 +219,15 @@ export function stripDeviceSuffix(jid: string): string {
 export function normalizePhone(input: string): string {
 	return input.replace(/^\+/, "").replace(/^0+/, "").replace(/\D/g, "");
 }
+
+/** Format milliseconds to a human-readable duration string. */
+export function fmtDuration(ms: number): string {
+	const s = Math.floor(ms / 1000);
+	const m = Math.floor(s / 60);
+	const h = Math.floor(m / 60);
+	const parts: string[] = [];
+	if (h > 0) parts.push(`${h}j`);
+	if (m % 60 > 0) parts.push(`${m % 60}m`);
+	if (s % 60 > 0 || parts.length === 0) parts.push(`${s % 60}d`);
+	return parts.join(" ");
+}

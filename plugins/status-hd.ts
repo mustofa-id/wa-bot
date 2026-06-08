@@ -1,4 +1,4 @@
-import { cleanUp, ffmpeg, ffprobe, getDataDir, ytdlp } from "#lib/utils.ts";
+import { cleanUp, ffmpeg, ffprobe, fmtDuration, getDataDir, ytdlp } from "#lib/utils.ts";
 import { mkdir, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 
@@ -243,6 +243,8 @@ export default {
 		const url = args[0];
 
 		if (url?.startsWith("http")) {
+			const t0 = Date.now();
+
 			yield {
 				type: "text",
 				text: "Mohon tunggu, sedang mengunduh...",
@@ -309,7 +311,10 @@ export default {
 					processedCount++;
 				}
 
-				yield { type: "text", text: "Semoga kamu suka hasilnya" };
+				yield {
+					type: "text",
+					text: `Selesai dalam ${fmtDuration(Date.now() - t0)}. Semoga kamu suka hasilnya`,
+				};
 			} finally {
 				cleanUp(...cleanupPaths);
 			}
@@ -346,6 +351,7 @@ export default {
 
 		await writeFile(inputPath, buffer);
 
+		const t0 = Date.now();
 		const cleanupPaths: string[] = [inputPath];
 
 		try {
@@ -353,7 +359,7 @@ export default {
 			cleanupPaths.push(...cp);
 			for (const r of results) yield r;
 
-			yield { type: "text", text: "Semoga kamu suka hasilnya" };
+			yield { type: "text", text: `Selesai dalam ${fmtDuration(Date.now() - t0)}. Semoga kamu suka hasilnya` };
 		} finally {
 			cleanUp(...cleanupPaths);
 		}
