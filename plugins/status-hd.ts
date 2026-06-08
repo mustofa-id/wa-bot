@@ -11,6 +11,19 @@ const PASSTHROUGH_PRESET = "fast";
 const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp"]);
 const VIDEO_EXTS = new Set([".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"]);
 
+const AUDIO_CODEC_ARGS = [
+	["-c:a", "aac"],
+	["-b:a", "64k"],
+	["-ar", "48000"],
+	["-ac", "2"],
+] as const;
+const VIDEO_CODEC_ARGS = [
+	["-c:v", "libx264"],
+	["-profile:v", "high"],
+	["-level", "4.1"],
+	["-pix_fmt", "yuv420p"],
+] as const;
+
 const ffmpegModeConfigs = {
 	gentle: { threads: "2", preset: "fast", bufsize: "1M", maxMuxingQueueSize: "2048" },
 	balance: { threads: "4", preset: "medium", bufsize: "4M", maxMuxingQueueSize: "4096" },
@@ -24,10 +37,7 @@ function getVideoConfig(segmentDuration = 0, bitrate?: string) {
 	const args = [
 		["-movflags", "+faststart"],
 		["-vf", "scale=1080:-2:flags=bilinear,fps=30"],
-		["-c:v", "libx264"],
-		["-profile:v", "high"],
-		["-level", "4.1"],
-		["-pix_fmt", "yuv420p"],
+		...VIDEO_CODEC_ARGS,
 		...(bitrate
 			? [
 					["-b:v", bitrate],
@@ -39,10 +49,7 @@ function getVideoConfig(segmentDuration = 0, bitrate?: string) {
 					["-maxrate", "3M"],
 					["-bufsize", c.bufsize],
 				]),
-		["-c:a", "aac"],
-		["-b:a", "64k"],
-		["-ar", "48000"],
-		["-ac", "2"],
+		...AUDIO_CODEC_ARGS,
 		["-threads", c.threads],
 		["-preset", c.preset],
 		["-max_muxing_queue_size", c.maxMuxingQueueSize],
@@ -101,6 +108,33 @@ function canPassthrough(info: VideoInfo): boolean {
 	return maxDim >= 1080;
 }
 
+async function buildVideoResults(
+	encodedPath: string,
+	workDir: string,
+	prefix: string,
+): Promise<{ results: BotPluginResult[]; cleanupPaths: string[] }> {
+	const duration = await getVideoDuration(encodedPath);
+	const cleanupPaths: string[] = [encodedPath];
+	const results: BotPluginResult[] = [];
+
+	if (duration > MAX_VIDEO_DURATION) {
+		const segmentPaths = await splitVideo(encodedPath, MAX_VIDEO_DURATION, workDir, `${prefix}_seg`, ".mp4");
+		cleanupPaths.push(...segmentPaths);
+		for (const [i, seg] of segmentPaths.entries()) {
+			results.push({
+				type: "video",
+				filePath: seg,
+				quoted: true,
+				caption: `Bagian ${i + 1}/${segmentPaths.length}`,
+			} as BotPluginResult);
+		}
+	} else {
+		results.push({ type: "video", filePath: encodedPath, quoted: true } as BotPluginResult);
+	}
+
+	return { results, cleanupPaths };
+}
+
 async function encodeVideo(inputPath: string, outputPath: string, segmentDuration: number): Promise<string> {
 	const duration = await getVideoDuration(inputPath);
 	const totalTarget = Math.floor(TARGET_SIZE_BYTES * (duration / segmentDuration));
@@ -129,46 +163,19 @@ async function compressPassthrough(
 	workDir: string,
 	prefix: string,
 ): Promise<{ results: BotPluginResult[]; cleanupPaths: string[] }> {
-	const duration = await getVideoDuration(inputPath);
-	const cleanupPaths: string[] = [];
-	const results: BotPluginResult[] = [];
-
-	const ext = ".mp4";
-	const encodedPath = join(workDir, `${prefix}_crf${ext}`);
+	const encodedPath = join(workDir, `${prefix}_crf.mp4`);
 	await ffmpeg(inputPath, {
 		args: [
-			["-c:v", "libx264"],
+			...VIDEO_CODEC_ARGS,
 			["-crf", String(CRF_PASSTHROUGH)],
 			["-preset", PASSTHROUGH_PRESET],
-			["-profile:v", "high"],
-			["-level", "4.1"],
-			["-pix_fmt", "yuv420p"],
-			["-c:a", "aac"],
-			["-b:a", "64k"],
-			["-ar", "48000"],
-			["-ac", "2"],
+			...AUDIO_CODEC_ARGS,
 			["-movflags", "+faststart"],
 		],
 		outputPath: encodedPath,
 	});
-	cleanupPaths.push(encodedPath);
 
-	if (duration > MAX_VIDEO_DURATION) {
-		const segmentPaths = await splitVideo(encodedPath, MAX_VIDEO_DURATION, workDir, `${prefix}_seg`, ext);
-		cleanupPaths.push(...segmentPaths);
-		for (const [i, seg] of segmentPaths.entries()) {
-			results.push({
-				type: "video",
-				filePath: seg,
-				quoted: true,
-				caption: `Bagian ${i + 1}/${segmentPaths.length}`,
-			} as BotPluginResult);
-		}
-	} else {
-		results.push({ type: "video", filePath: encodedPath, quoted: true } as BotPluginResult);
-	}
-
-	return { results, cleanupPaths };
+	return buildVideoResults(encodedPath, workDir, prefix);
 }
 
 async function splitVideo(
@@ -227,24 +234,7 @@ async function processFile(
 
 		const outputPath = join(workDir, `${prefix}_hd.mp4`);
 		const result = await encodeVideo(inputPath, outputPath, MAX_VIDEO_DURATION);
-		cleanupPaths.push(result);
-
-		const duration = await getVideoDuration(result);
-		if (duration > MAX_VIDEO_DURATION) {
-			const segmentPaths = await splitVideo(result, MAX_VIDEO_DURATION, workDir, `${prefix}_seg`, ".mp4");
-			cleanupPaths.push(...segmentPaths);
-
-			for (const [i, seg] of segmentPaths.entries()) {
-				results.push({
-					type: "video",
-					filePath: seg,
-					quoted: true,
-					caption: `Bagian ${i + 1}/${segmentPaths.length}`,
-				} as BotPluginResult);
-			}
-		} else {
-			results.push({ type: "video", filePath: result, quoted: true } as BotPluginResult);
-		}
+		return buildVideoResults(result, workDir, prefix);
 	}
 
 	return { results, cleanupPaths };

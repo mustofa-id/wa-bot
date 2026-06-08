@@ -5,7 +5,7 @@ import { basename, dirname, extname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import timers from "node:timers/promises";
 
-type RunArgs = (string | string[])[];
+type RunArgs = readonly (string | readonly string[])[];
 
 export function run(cmd: string, args: RunArgs): Promise<{ stdout: string; stderr: string }> {
 	return new Promise((resolve, reject) => {
