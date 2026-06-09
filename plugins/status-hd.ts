@@ -1,4 +1,4 @@
-import { cleanUp, ffmpeg, ffprobe, fmtDuration, getDataDir, ytdlp } from "#lib/utils.ts";
+import { cleanUp, ffmpeg, ffprobe, fmtDuration, galleryDl, getDataDir, ytdlp } from "#lib/utils.ts";
 import { mkdir, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 
@@ -269,6 +269,11 @@ export default {
 					["--format", "bestvideo[vcodec*=avc1]+bestaudio[ext=m4a]/bestvideo+bestaudio/best"],
 					["-o", outputPattern],
 				],
+			}).catch((e: Error) => {
+				if (/ERROR: \[.+\] .+: There is no video/i.test(e.message)) {
+					return galleryDl(url, workDir);
+				}
+				throw e;
 			});
 
 			if (paths.length === 0) throw new Error("Tidak ada media yang diunduh");

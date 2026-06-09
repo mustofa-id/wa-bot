@@ -85,6 +85,28 @@ export async function ytdlp(
 }
 
 /**
+ * Run gallery-dl with the given URL and output directory.
+ * Returns an array of downloaded file paths.
+ */
+export async function galleryDl(url: string, directory: string): Promise<string[]> {
+	const cmd = process.platform === "win32" ? "gallery-dl.exe" : "gallery-dl";
+	const { stdout } = await run(cmd, [
+		"-D",
+		directory,
+		"-o",
+		"filename={id}_{num}.{extension}",
+		"--print",
+		"filenames",
+		url,
+	]);
+	return stdout
+		.split("\n")
+		.map((l) => l.trim())
+		.filter(Boolean)
+		.map((f) => join(directory, f));
+}
+
+/**
  * Delete file paths after a short delay (3.5s).
  * Fire-and-forget safe: errors are logged to console.warn.
  */

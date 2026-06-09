@@ -53,7 +53,7 @@
 - **Reminders**: `plugins/reminder.ts` — `!reminder <waktu> [tanggal]`, `!reminder ls`, `!reminder rm <id>`. Text from quoted message or prompt. Time parsing via regex (24h `HH:mm`/`HHmm`, date `YYYY-MM-DD`/`DD-MM-YYYY`/etc.) with date aliases (`besok`/`tomorrow` = +1 day, `lusa`/`dayafter` = +2 day, case-insensitive). SQLite-backed, survives restarts.
 - **Prayers** (`plugins/prayers.ts`): `!prayers` shows today's prayer times via api.aladhan.com; `!prayers on/off` toggles notifications; `!prayers setup` prompts for city, country, calc method (interactive). Uses native `fetch`. Scheduler ticks every 60s, sends notification when a prayer time matches (caches timings per city/method per day). SQLite-backed config/per-user dedup.
 - **Auto-reconnect**: On connection close, bot waits 5s and restarts unless statusCode 401 (logout).
-- **System deps (per-plugin)**: ffmpeg+ffprobe, ghostscript, yt-dlp, pdf2docx. Wrappers in `lib/utils.ts`.
+- **System deps (per-plugin)**: ffmpeg+ffprobe, ghostscript, yt-dlp, gallery-dl, pdf2docx. Wrappers in `lib/utils.ts`.
 
 ## Testing
 
@@ -66,7 +66,7 @@
 
 - `./deploy.sh docker` — builds Docker image, runs container with `--cpus="0.7"`, mounts `./data:/app/data`
 - `./deploy.sh pm2` — installs deps, starts via PM2 with `--env-file=.env`
-- Docker image (`Dockerfile`) has system deps (ffmpeg, ghostscript, yt-dlp, pdf2docx) pre-installed
+- Docker image (`Dockerfile`) has system deps (ffmpeg, ghostscript, yt-dlp, gallery-dl, pdf2docx) pre-installed
 
 ## Gotchas
 

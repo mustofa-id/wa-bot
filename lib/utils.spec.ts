@@ -5,6 +5,7 @@ import {
 	ffmpeg,
 	ffprobe,
 	fmtDuration,
+	galleryDl,
 	getDataDir,
 	ghostScript,
 	normalizePhone,
@@ -382,6 +383,23 @@ describe("ytdlp", () => {
 				args: ["--no-progress", "--no-warnings", "--socket-timeout", "3", "--max-filesize", "1"],
 			}),
 		);
+	});
+});
+
+describe("galleryDl", () => {
+	let available = false;
+
+	before(async () => {
+		available = await new Promise<boolean>((resolve) => {
+			const proc = spawn("gallery-dl", ["--version"]);
+			proc.on("close", (code) => resolve(code === 0));
+			proc.on("error", () => resolve(false));
+		});
+	});
+
+	it("rejects on invalid URL", { timeout: 15000 }, async () => {
+		if (!available) return;
+		await assert.rejects(galleryDl("https://nonexistent.example.com/image", "/tmp"));
 	});
 });
 
