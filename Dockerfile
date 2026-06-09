@@ -14,8 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Layer 2 — Python tools (pdf2docx for PDF→DOCX, yt-dlp for media downloads)
-RUN pip3 install --break-system-packages --no-cache-dir yt-dlp pdf2docx && \
-    yt-dlp --version && pdf2docx --help > /dev/null
+RUN pip3 install --break-system-packages --no-cache-dir yt-dlp gallery-dl pdf2docx && \
+    yt-dlp --version && gallery-dl --version && pdf2docx --help > /dev/null
 
 # ------- Application -------
 

@@ -61,6 +61,7 @@ elif [[ "$MODE" == "pm2" ]]; then
 		  - ffmpeg + ffprobe  (video/image processing)
 		  - ghostscript (gs)  (PDF compress, split, encrypt)
 		  - yt-dlp            (media download from URLs)
+		  - gallery-dl        (fallback for image-only URLs)
 		  - pdf2docx          (PDF → DOCX conversion)
 
 	EOF

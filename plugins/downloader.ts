@@ -1,4 +1,4 @@
-import { cleanUp, getDataDir, ytdlp } from "#lib/utils.ts";
+import { cleanUp, galleryDl, getDataDir, ytdlp } from "#lib/utils.ts";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -39,7 +39,12 @@ export default {
 		].flat();
 		if (!isMulti) ytdlpArgs.push("--no-playlist");
 
-		const paths = await ytdlp(url, { args: ytdlpArgs });
+		const paths = await ytdlp(url, { args: ytdlpArgs }).catch((e: Error) => {
+			if (/ERROR: (\[.+\] .+: There is no video|Unsupported URL)/i.test(e.message)) {
+				return galleryDl(url, workDir);
+			}
+			throw e;
+		});
 
 		if (paths.length === 0) throw new Error("Tidak ada media yang diunduh");
 
