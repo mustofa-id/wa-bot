@@ -91,18 +91,17 @@ export async function ytdlp(
 export async function galleryDl(url: string, directory: string): Promise<string[]> {
 	const cmd = process.platform === "win32" ? "gallery-dl.exe" : "gallery-dl";
 	const { stdout } = await run(cmd, [
-		"-D",
-		directory,
-		"-o",
-		"filename={id}_{num}.{extension}",
-		"--print",
-		"filenames",
+		["-D", directory],
+		["-o", "subdirectory="],
+		["-o", "filename={id}_{num}.{extension}"],
+		["--print", "filenames"],
 		url,
 	]);
 	return stdout
 		.split("\n")
 		.map((l) => l.trim())
 		.filter(Boolean)
+		.filter((f) => f !== "None")
 		.map((f) => join(directory, f));
 }
 
