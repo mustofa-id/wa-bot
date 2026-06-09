@@ -40,7 +40,7 @@ export default {
 		if (!isMulti) ytdlpArgs.push("--no-playlist");
 
 		const paths = await ytdlp(url, { args: ytdlpArgs }).catch((e: Error) => {
-			if (/ERROR: \[.+\] .+: There is no video/i.test(e.message)) {
+			if (/ERROR: (\[.+\] .+: There is no video|Unsupported URL)/i.test(e.message)) {
 				return galleryDl(url, workDir);
 			}
 			throw e;

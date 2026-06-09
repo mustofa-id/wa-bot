@@ -270,7 +270,7 @@ export default {
 					["-o", outputPattern],
 				],
 			}).catch((e: Error) => {
-				if (/ERROR: \[.+\] .+: There is no video/i.test(e.message)) {
+				if (/ERROR: (\[.+\] .+: There is no video|Unsupported URL)/i.test(e.message)) {
 					return galleryDl(url, workDir);
 				}
 				throw e;
