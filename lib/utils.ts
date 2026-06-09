@@ -94,15 +94,13 @@ export async function galleryDl(url: string, directory: string): Promise<string[
 		["-D", directory],
 		["-o", "subdirectory="],
 		["-o", "filename={id}_{num}.{extension}"],
-		["--print", "filenames"],
 		url,
 	]);
 	return stdout
 		.split("\n")
 		.map((l) => l.trim())
 		.filter(Boolean)
-		.filter((f) => f !== "None")
-		.map((f) => join(directory, f));
+		.filter((f) => f !== "None");
 }
 
 /**
