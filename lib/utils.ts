@@ -100,7 +100,8 @@ export async function galleryDl(url: string, directory: string): Promise<string[
 		.split("\n")
 		.map((l) => l.trim())
 		.filter(Boolean)
-		.filter((f) => f !== "None");
+		.filter((f) => f !== "None")
+		.filter((f) => !f.startsWith("#"));
 }
 
 /**
