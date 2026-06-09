@@ -101,7 +101,7 @@ export async function galleryDl(url: string, directory: string): Promise<string[
 		.map((l) => l.trim())
 		.filter(Boolean)
 		.filter((f) => f !== "None")
-		.filter((f) => !f.startsWith("#"));
+		.map((f) => f.replace(/^# /, ""));
 }
 
 /**
