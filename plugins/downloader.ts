@@ -6,14 +6,14 @@ export default {
 	command: "!dl",
 	description:
 		"Download media dari URL (Instagram, YouTube, dll). " +
-		"Gunakan `!dl <url> [multi]` untuk galeri/playlist. " +
+		"Gunakan `!dl <url>` untuk media, `!dl <url> audio` untuk audio saja. " +
 		"Untuk kebutuhan Status WhatsApp, silakan gunakan `!shd <url>` supaya lebih optimal.",
 
 	async *run({ args }) {
 		const url = args[0];
-		const isMulti = args[1] === "multi";
+		const isAudio = args[1] === "audio";
 
-		if (!url) throw new Error("Gunakan: `!dl <url> [multi]`");
+		if (!url) throw new Error("Gunakan: `!dl <url>` atau `!dl <url> audio`");
 
 		yield {
 			type: "text",
@@ -36,10 +36,11 @@ export default {
 			["--socket-timeout", "30"],
 			["--retries", "3"],
 			["-o", outputPattern],
+			...(isAudio ? ["--extract-audio", "--audio-format", "m4a"] : []),
 		].flat();
-		if (!isMulti) ytdlpArgs.push("--no-playlist");
 
 		const paths = await ytdlp(url, { args: ytdlpArgs }).catch((e: Error) => {
+			if (isAudio) throw e;
 			if (/ERROR: (\[.+\] .+: There is no video|Unsupported URL)/i.test(e.message)) {
 				return galleryDl(url, workDir);
 			}
