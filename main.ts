@@ -116,7 +116,7 @@ async function startBot() {
 	}
 
 	const cm = new ConversationManager();
-	const ws = createWASocket({ auth: state });
+	const ws = createWASocket({ auth: state, keepAliveIntervalMs: 10_000 });
 
 	async function sendMessage(chatId: string, result: BotPluginResult, msg?: WAMessage) {
 		const quoted =
@@ -181,6 +181,7 @@ async function startBot() {
 			const shouldReconnect = statusCode !== 401;
 			if (shouldReconnect) {
 				// reconnect on pairing restart errors
+				await ws.end(undefined);
 				await delay(5_000);
 				await startBot().finally(() => (starting = false));
 			}
