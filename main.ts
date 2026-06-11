@@ -85,8 +85,12 @@ function pluginResultToMessage(result: BotPluginResult): AnyMessageContent {
 }
 
 let stopScheduler: ReturnType<typeof startScheduler> | null = null;
+let starting = false;
 
 async function startBot() {
+	if (starting) return;
+	starting = true;
+
 	const { state, saveCreds } = await useSQLiteAuthState();
 	const ownerId = stripDeviceSuffix(state.creds.me?.lid ?? "");
 	const plugins = await getAllPlugins(ownerId);
@@ -178,7 +182,7 @@ async function startBot() {
 			if (shouldReconnect) {
 				// reconnect on pairing restart errors
 				await delay(5_000);
-				await startBot();
+				await startBot().finally(() => (starting = false));
 			}
 			return;
 		}
