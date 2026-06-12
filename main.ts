@@ -181,7 +181,6 @@ async function startBot() {
 			const shouldReconnect = statusCode !== 401;
 			if (shouldReconnect) {
 				// reconnect on pairing restart errors
-				await ws.end(undefined);
 				await delay(5_000);
 				await startBot().finally(() => (starting = false));
 			}

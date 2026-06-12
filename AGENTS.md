@@ -52,7 +52,7 @@
 - **Scheduler**: `lib/scheduler.ts` exports `registerTask({ name, intervalMs, tick })` and `startScheduler(sendMessage)`. Tasks self-register at module load; `main.ts` calls `startScheduler(sendMessage)` once after socket creation (passes the local `sendMessage` helper, not the socket). Used by `plugins/reminder.ts` for periodic polling.
 - **Reminders**: `plugins/reminder.ts` — `!reminder <waktu> [tanggal]`, `!reminder ls`, `!reminder rm <id>`. Text from quoted message or prompt. Time parsing via regex (24h `HH:mm`/`HHmm`, date `YYYY-MM-DD`/`DD-MM-YYYY`/etc.) with date aliases (`besok`/`tomorrow` = +1 day, `lusa`/`dayafter` = +2 day, case-insensitive). SQLite-backed, survives restarts.
 - **Prayers** (`plugins/prayers.ts`): `!prayers` shows today's prayer times via api.aladhan.com; `!prayers on/off` toggles notifications; `!prayers setup` prompts for city, country, calc method (interactive). Uses native `fetch`. Scheduler ticks every 60s, sends notification when a prayer time matches (caches timings per city/method per day). SQLite-backed config/per-user dedup.
-- **Auto-reconnect**: On connection close, bot calls `ws.end()` then waits 5s and restarts unless statusCode 401 (logout). **Concurrent reconnect guard**: `starting` flag prevents duplicate `startBot()` instances.
+- **Auto-reconnect**: On connection close, bot waits 5s and restarts unless statusCode 401 (logout). **Concurrent reconnect guard**: `starting` flag prevents duplicate `startBot()` instances.
 - **System deps (per-plugin)**: ffmpeg+ffprobe, ghostscript, yt-dlp, gallery-dl, pdf2docx, cpulimit (optional, for PM2 CPU limiting). Wrappers in `lib/utils.ts`.
 
 ## Testing
