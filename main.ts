@@ -172,31 +172,37 @@ async function startBot() {
 	ws.ev.on("creds.update", saveCreds);
 
 	ws.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
-		if (connection === "close") {
-			const error = lastDisconnect?.error as any;
-			const statusCode = error?.output?.statusCode;
-			console.warn("closed:", error);
+		try {
+			if (connection === "close") {
+				const error = lastDisconnect?.error as any;
+				const statusCode = error?.output?.statusCode;
+				console.warn("closed:", error);
 
-			// don't logout, always reconnect unless explicitly logged out
-			const shouldReconnect = statusCode !== 401;
-			if (shouldReconnect) {
-				// reconnect on pairing restart errors
-				await delay(5_000);
-				await startBot().finally(() => (starting = false));
+				// don't logout, always reconnect unless explicitly logged out
+				const shouldReconnect = statusCode !== 401;
+				if (shouldReconnect) {
+					// reconnect on pairing restart errors
+					starting = false;
+					await delay(5_000);
+					await startBot();
+				}
+				return;
 			}
-			return;
-		}
 
-		if (connection === "open") {
-			console.log("connection: open");
-		}
+			if (connection === "open") {
+				console.log("connection: open");
+			}
 
-		if (qr) {
-			const qrh = await qrcode.toString(qr, {
-				type: "terminal",
-				small: true,
-			});
-			console.log(qrh);
+			if (qr) {
+				const qrh = await qrcode.toString(qr, {
+					type: "terminal",
+					small: true,
+				});
+				console.log(qrh);
+			}
+		} catch (e) {
+			starting = false;
+			console.error("connection.update error:", e);
 		}
 	});
 
