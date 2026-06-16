@@ -3,6 +3,7 @@ autoremove
 bestaudio
 bestvideo
 chrono
+cpulimit
 cpus
 creds
 dayafter

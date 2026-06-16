@@ -2,10 +2,17 @@
 set -euo pipefail
 
 MODE="${1:-}"
-CPUS="${2:-0.7}"
+PCT="${2:-100}"
+CORES=$(nproc)
+
+if [[ "$PCT" -lt 1 || "$PCT" -gt 100 ]]; then
+	echo "Error: CPU percentage must be between 1 and 100" >&2
+	exit 1
+fi
 
 if [[ -z "$MODE" ]]; then
-	echo "Usage: $0 docker [cpus]|pm2" >&2
+	echo "Usage: $0 docker [pct]|pm2 [pct]" >&2
+	echo "  pct — CPU percentage (1-100, default 100)" >&2
 	exit 1
 fi
 
@@ -14,6 +21,8 @@ if [[ ! -f .env ]]; then
 fi
 
 if [[ "$MODE" == "docker" ]]; then
+	CPUS=$(echo "scale=2; $CORES * $PCT / 100" | bc)
+
 	echo "Pulling latest code…"
 	git pull
 
@@ -40,7 +49,7 @@ if [[ "$MODE" == "docker" ]]; then
 	mkdir -p "$(pwd)/data"
 	chown 1000:1000 "$(pwd)/data" 2>/dev/null || true
 
-	echo "Starting container 'wa-bot'…"
+	echo "Starting container 'wa-bot' with --cpus=\"$CPUS\"…"
 	docker run -d --cpus="$CPUS" "${ENV_FLAG[@]}" --name wa-bot -v "$(pwd)/data:/app/data" wa-bot:latest
 
 	echo "Done."
@@ -63,6 +72,7 @@ elif [[ "$MODE" == "pm2" ]]; then
 		  - yt-dlp            (media download from URLs)
 		  - gallery-dl        (fallback for image-only URLs)
 		  - pdf2docx          (PDF → DOCX conversion)
+		  - cpulimit          (CPU limiting, optional)
 
 	EOF
 
@@ -83,13 +93,26 @@ elif [[ "$MODE" == "pm2" ]]; then
 		ENV_ARGS=(--interpreter-args "--env-file=.env")
 	fi
 
+	if command -v cpulimit &>/dev/null; then
+		CPULIMIT_PCT=$(echo "$CORES * $PCT" | bc)
+		echo "Using cpulimit -l $CPULIMIT_PCT% for Node.js process tree…"
+		INTERPRETER="cpulimit"
+		INTERPRETER_ARGS="-l $CPULIMIT_PCT node ${ENV_ARGS[@]+"${ENV_ARGS[@]}"}"
+	else
+		if [[ "$PCT" -lt 100 ]]; then
+			echo "Warning: cpulimit not found — running without CPU limit (install it: sudo apt install cpulimit)" >&2
+		fi
+		INTERPRETER="node"
+		INTERPRETER_ARGS="${ENV_ARGS[@]+"${ENV_ARGS[@]}"}"
+	fi
+
 	if pm2 list 2>/dev/null | grep -q 'wa-bot'; then
 		echo "Restarting PM2 process 'wa-bot'…"
-		pm2 restart wa-bot
-	else
-		echo "Starting 'wa-bot' with PM2…"
-		pm2 start main.ts --interpreter node "${ENV_ARGS[@]}" --name wa-bot
+		pm2 delete wa-bot
 	fi
+
+	echo "Starting 'wa-bot' with PM2…"
+	pm2 start main.ts --interpreter "$INTERPRETER" --interpreter-args "$INTERPRETER_ARGS" --name wa-bot
 
 	pm2 save
 

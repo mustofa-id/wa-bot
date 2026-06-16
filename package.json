@@ -9,11 +9,17 @@
 		"test": "node --env-file=.env --test \"**/*.spec.ts\"",
 		"test:watch": "node --env-file=.env --test --watch \"**/*.spec.ts\"",
 		"test:file": "node --env-file=.env --test",
-		"format": "prettier --write ."
+		"format": "pnpx prettier --write ."
 	},
 	"imports": {
 		"#plugins/*": "./plugins/*",
 		"#lib/*": "./lib/*"
+	},
+	"prettier": {
+		"useTabs": true,
+		"tabWidth": 4,
+		"semi": true,
+		"printWidth": 120
 	},
 	"keywords": [],
 	"author": {
@@ -25,8 +31,7 @@
 	"packageManager": "pnpm@11.2.2",
 	"devDependencies": {
 		"@types/mime-types": "^3.0.1",
-		"@types/qrcode": "^1.5.6",
-		"prettier": "^3.8.3"
+		"@types/qrcode": "^1.5.6"
 	},
 	"dependencies": {
 		"baileys": "7.0.0-rc13",
