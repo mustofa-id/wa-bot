@@ -2,3 +2,5 @@ allowBuilds:
     baileys: true
     protobufjs: true
     sharp: true
+minimumReleaseAgeExclude:
+    - baileys@7.0.0-rc14
