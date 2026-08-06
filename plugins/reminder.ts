@@ -98,7 +98,8 @@ function getPart(parts: Intl.DateTimeFormatPart[], type: string, fallback = 0): 
 }
 
 function fmtDateString(date: Date | string, locales: Intl.LocalesArgument = "id-ID") {
-	return (typeof date === "string" ? new Date(date) : date).toLocaleString(locales, {
+	const d = typeof date === "string" ? new Date(date.replace(" ", "T") + "Z") : date;
+	return d.toLocaleString(locales, {
 		timeZone: tz(),
 		weekday: "long",
 		year: "numeric",
@@ -496,6 +497,7 @@ export default plugin;
 export {
 	dateAliases,
 	firstRepeatOccurrence,
+	fmtDateString,
 	fmtRepeatType,
 	nextRemindAt,
 	offsetDate,

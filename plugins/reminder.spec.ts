@@ -1,4 +1,13 @@
-import { dateAliases, offsetDate, parseDate, parseDateTime, parseTime, todayInTz, toUtc } from "#plugins/reminder.ts";
+import {
+	dateAliases,
+	fmtDateString,
+	offsetDate,
+	parseDate,
+	parseDateTime,
+	parseTime,
+	todayInTz,
+	toUtc,
+} from "#plugins/reminder.ts";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -34,6 +43,34 @@ describe("reminder utils", () => {
 			delete process.env.TZ;
 			assert.equal(modTz(), "Asia/Jakarta");
 		});
+	});
+});
+
+describe("fmtDateString", () => {
+	function hasTime(output: string, time: string): boolean {
+		return output.includes(time.replace(":", ".")) || output.includes(time);
+	}
+
+	it("treats DB string (UTC) as UTC — 00:00 UTC shows 07:00 in Jakarta", () => {
+		process.env.TZ = "Asia/Jakarta";
+		const result = fmtDateString("2026-08-06 00:00:00");
+		assert.ok(hasTime(result, "07:00"), `expected 07:00, got: ${result}`);
+		delete process.env.TZ;
+	});
+
+	it("treats DB string (UTC) as UTC — 14:30 UTC shows 21:30 in Jakarta", () => {
+		process.env.TZ = "Asia/Jakarta";
+		const result = fmtDateString("2026-08-06 14:30:00");
+		assert.ok(hasTime(result, "21:30"), `expected 21:30, got: ${result}`);
+		delete process.env.TZ;
+	});
+
+	it("renders a Date object in the configured timezone", () => {
+		process.env.TZ = "Asia/Jakarta";
+		const result = fmtDateString(new Date("2026-08-06T00:00:00.000Z"));
+		assert.ok(hasTime(result, "07:00"), `expected 07:00, got: ${result}`);
+		assert.ok(result.includes("Agustus"), `expected Agustus, got: ${result}`);
+		delete process.env.TZ;
 	});
 });
 
