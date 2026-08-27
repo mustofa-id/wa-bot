@@ -10,6 +10,7 @@ describe("notes CRUD", () => {
 	let getNote: typeof import("#plugins/notes.ts").getNote;
 	let updateNote: typeof import("#plugins/notes.ts").updateNote;
 	let removeNote: typeof import("#plugins/notes.ts").removeNote;
+	let searchNotes: typeof import("#plugins/notes.ts").searchNotes;
 	let tempDir: string;
 	let originalDataDir: string | undefined;
 
@@ -23,6 +24,7 @@ describe("notes CRUD", () => {
 		getNote = mod.getNote;
 		updateNote = mod.updateNote;
 		removeNote = mod.removeNote;
+		searchNotes = mod.searchNotes;
 	});
 
 	after(async () => {
@@ -100,5 +102,69 @@ describe("notes CRUD", () => {
 		removeNote(2, "wrong@g.us");
 		const row = getNote(2, chatId);
 		assert.ok(row);
+	});
+});
+
+describe("notes search", () => {
+	let createNote: typeof import("#plugins/notes.ts").createNote;
+	let listNotes: typeof import("#plugins/notes.ts").listNotes;
+	let searchNotes: typeof import("#plugins/notes.ts").searchNotes;
+	let removeNote: typeof import("#plugins/notes.ts").removeNote;
+	let tempDir: string;
+	let originalDataDir: string | undefined;
+
+	before(async () => {
+		originalDataDir = process.env.DATA_DIR;
+		tempDir = await mkdtemp(join(tmpdir(), "notes-search-test-"));
+		process.env.DATA_DIR = `file://${tempDir}/`;
+		const mod = await import("#plugins/notes.ts");
+		createNote = mod.createNote;
+		listNotes = mod.listNotes;
+		searchNotes = mod.searchNotes;
+		removeNote = mod.removeNote;
+	});
+
+	after(async () => {
+		process.env.DATA_DIR = originalDataDir;
+		await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+	});
+
+	const chatId = "11111@g.us";
+	const creatorJid = "creator@s.whatsapp.net";
+
+	it("finds note by title match", () => {
+		createNote(chatId, null, creatorJid, "Meeting Notes", "Discuss project timeline");
+		createNote(chatId, null, creatorJid, "Shopping List", "Milk, eggs, bread");
+		const rows = searchNotes(chatId, "Meeting");
+		assert.equal(rows.length, 1);
+		assert.equal(rows[0].title, "Meeting Notes");
+	});
+
+	it("finds note by content match", () => {
+		const rows = searchNotes(chatId, "bread");
+		assert.equal(rows.length, 1);
+		assert.equal(rows[0].title, "Shopping List");
+	});
+
+	it("returns empty array for no matches", () => {
+		const rows = searchNotes(chatId, "nonexistent");
+		assert.equal(rows.length, 0);
+	});
+
+	it("search is case-insensitive", () => {
+		const rows = searchNotes(chatId, "meeting");
+		assert.equal(rows.length, 1);
+		assert.equal(rows[0].title, "Meeting Notes");
+	});
+
+	it("search scopes by jid — different jid returns empty", () => {
+		const rows = searchNotes("99999@g.us", "Meeting");
+		assert.equal(rows.length, 0);
+	});
+
+	it("finds multiple matching notes", () => {
+		createNote(chatId, null, creatorJid, "Project A", "Meeting at 3pm");
+		const rows = searchNotes(chatId, "Meeting");
+		assert.equal(rows.length, 2);
 	});
 });

@@ -26,6 +26,9 @@ const updateContentStmt = db.prepare(
 	"UPDATE notes SET content = ?, updated_by = ?, updated_at = datetime('now') WHERE id = ? AND jid = ?",
 );
 const deleteStmt = db.prepare("DELETE FROM notes WHERE id = ? AND jid = ?");
+const searchNotesStmt = db.prepare(
+	"SELECT id, title, substr(content, 1, 30) AS excerpt FROM notes WHERE jid = ? AND (title LIKE ? OR content LIKE ?) ORDER BY id",
+);
 
 type NoteRow = {
 	id: number;
@@ -61,12 +64,18 @@ function removeNote(id: number, chatId: string) {
 	return deleteStmt.run(id, chatId);
 }
 
+function searchNotes(chatId: string, query: string) {
+	const pattern = `%${query}%`;
+	return searchNotesStmt.all(chatId, pattern, pattern) as NoteListItem[];
+}
+
 export default {
 	command: "!notes",
-	description: "Kelola catatan. Gunakan: !notes add, !notes ls, !notes <id>, !notes update <id>, !notes rm <id>",
+	description:
+		"Kelola catatan. Gunakan: !notes, !notes add, !notes search <query>, !notes <id>, !notes update <id>, !notes rm <id>",
 	queue: "user",
 	async *run({ args, user, chatId, quoted }) {
-		const sub = args[0] || "ls";
+		const sub = args[0];
 
 		if (sub === "add") {
 			const titleResp = yield prompt({
@@ -95,13 +104,21 @@ export default {
 			};
 		}
 
-		if (sub === "ls") {
-			const rows = listNotes(chatId);
+		if (sub === "search") {
+			const query = args.slice(1).join(" ").trim();
+			if (!query) {
+				throw new Error("Gunakan: `!notes search <query>`");
+			}
+			const rows = searchNotes(chatId, query);
 			if (!rows.length) {
-				return { type: "text", text: "Belum ada catatan.", quoted: true };
+				return { type: "text", text: "Tidak ada catatan yang cocok.", quoted: true };
 			}
 			const lines = rows.map((r) => `- #${r.id} *${r.title}* — ${r.excerpt}...`);
-			return { type: "text", text: `*Catatan (${rows.length}):*\n${lines.join("\n")}`, quoted: true };
+			return {
+				type: "text",
+				text: `*Hasil pencarian "${query}" (${rows.length}):*\n${lines.join("\n")}`,
+				quoted: true,
+			};
 		}
 
 		if (sub === "update") {
@@ -140,7 +157,16 @@ export default {
 			return { type: "text", text: `Catatan \`#${id}\` *${row.title}* berhasil dihapus.`, quoted: true };
 		}
 
-		// default: sub === "ls" or !notes <id>
+		// default: !notes → list, !notes <id> → detail
+		if (!sub) {
+			const rows = listNotes(chatId);
+			if (!rows.length) {
+				return { type: "text", text: "Belum ada catatan.", quoted: true };
+			}
+			const lines = rows.map((r) => `- #${r.id} *${r.title}* — ${r.excerpt}...`);
+			return { type: "text", text: `*Catatan (${rows.length}):*\n${lines.join("\n")}`, quoted: true };
+		}
+
 		const id = Number(sub);
 		if (Number.isFinite(id) && id >= 1) {
 			const row = getNote(id, chatId);
@@ -163,9 +189,9 @@ export default {
 
 		// unknown subcommand — show help
 		throw new Error(
-			"Gunakan: `!notes add`, `!notes ls`, `!notes <id>`, `!notes update <id>`, atau `!notes rm <id>`",
+			"Gunakan: `!notes`, `!notes add`, `!notes search <query>`, `!notes <id>`, `!notes update <id>`, atau `!notes rm <id>`",
 		);
 	},
 } satisfies BotPlugin;
 
-export { createNote, getNote, listNotes, removeNote, updateNote };
+export { createNote, getNote, listNotes, removeNote, searchNotes, updateNote };
